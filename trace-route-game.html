@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Trace the Route</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;700&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;background:#0a0a14;font-family:'Outfit',sans-serif;color:#e0e0e0;overflow-x:hidden}
+.hud{height:50px;background:#12121e;border-bottom:2px solid #2a2a3e;display:flex;align-items:center;padding:0 20px;gap:20px;position:sticky;top:0;z-index:10}
+.hud-title{font-size:18px;font-weight:900;color:#38bdf8}
+.hud-stat{font-family:'IBM Plex Mono';font-size:13px}.hud-stat .v{font-weight:700;font-size:15px}
+.s-score .v{color:#4ade80}.s-hop .v{color:#fbbf24}.s-sc .v{color:#818cf8}
+.hud-r{margin-left:auto}
+.container{max-width:650px;margin:0 auto;padding:20px}
+
+/* Path visualization */
+.path-vis{display:flex;align-items:center;justify-content:center;gap:2px;margin-bottom:20px;flex-wrap:wrap}
+.pv-node{width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;border:2px solid #2a2a3e;background:#12121e;transition:all .2s}
+.pv-node.done{border-color:#4ade80;background:rgba(74,222,128,.06)}
+.pv-node.current{border-color:#38bdf8;background:rgba(56,189,248,.1);animation:glow 1.5s infinite}
+.pv-node.fail{border-color:#ff6b6b;background:rgba(255,107,107,.1)}
+.pv-node.locked{opacity:.2}
+@keyframes glow{0%,100%{box-shadow:0 0 0 0 rgba(56,189,248,0)}50%{box-shadow:0 0 12px 2px rgba(56,189,248,.2)}}
+.pv-arrow{color:#2a2a3e;font-size:12px}.pv-arrow.active{color:#4ade80}
+
+/* Question card */
+.q-card{background:#1e1e2e;border:2px solid #2a2a3e;border-radius:16px;padding:20px;margin-bottom:16px}
+.q-card.active{border-color:#38bdf8}
+.qc-device{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.qc-ico{font-size:32px}.qc-info{flex:1}
+.qc-name{font-size:16px;font-weight:800}.qc-desc{font-size:11px;color:#888}
+.qc-pkt{background:#0a0a14;border:1px solid #1a1a2e;border-radius:8px;padding:10px;margin-bottom:14px;font-family:'IBM Plex Mono',monospace;font-size:10px;line-height:1.7;color:#888}
+.qc-pkt b{color:#38bdf8}
+.qc-question{font-size:15px;font-weight:700;margin-bottom:12px;line-height:1.5}
+.qc-opts{display:flex;flex-direction:column;gap:6px}
+.qc-opt{padding:12px 16px;border-radius:10px;border:2px solid #2a2a3e;cursor:pointer;font-size:13px;line-height:1.5;transition:all .12s;background:#12121e}
+.qc-opt:hover:not(.locked){border-color:#38bdf8;background:rgba(56,189,248,.04)}
+.qc-opt.correct{border-color:#4ade80;background:rgba(74,222,128,.08);color:#4ade80}
+.qc-opt.wrong{border-color:#ff6b6b;background:rgba(255,107,107,.08);color:#ff6b6b}
+.qc-opt.locked{cursor:default;opacity:.35}
+.qc-explain{margin-top:10px;padding:10px 14px;border-radius:8px;font-size:12px;line-height:1.6;display:none}
+.qc-explain.on{display:block}
+.qc-explain.ok{background:rgba(74,222,128,.06);border:1px solid rgba(74,222,128,.15);color:#4ade80}
+.qc-explain.no{background:rgba(255,107,107,.06);border:1px solid rgba(255,107,107,.15);color:#ff6b6b}
+
+.end-card{background:#1e1e2e;border:2px solid #2a2a3e;border-radius:16px;padding:24px;text-align:center;display:none}
+.end-card.on{display:block}
+.end-card h2{font-size:28px;font-weight:900;margin-bottom:8px}
+.end-card p{color:#888;font-size:13px;line-height:1.6;margin-bottom:16px}
+.restart{padding:12px 32px;border-radius:99px;border:2px solid #38bdf8;background:transparent;color:#38bdf8;font-size:16px;font-weight:800;cursor:pointer;font-family:'Outfit'}
+</style>
+</head>
+<body>
+<div class="hud">
+<span class="hud-title">TRACE THE ROUTE</span>
+<div class="hud-stat s-score">Score: <span class="v" id="h-score">0</span></div>
+<div class="hud-stat s-hop">Hop: <span class="v" id="h-hop">1/8</span></div>
+<div class="hud-stat s-sc">Scenario: <span class="v" id="h-sc">1/3</span></div>
+</div>
+<div class="container">
+<div class="path-vis" id="path-vis"></div>
+<div id="content"></div>
+<div class="end-card" id="endcard"></div>
+</div>
+<script>
+const SCENARIOS=[
+{name:'Normal HTTPS request to Google',
+ src:'192.168.1.50',dst:'142.250.74.46',dstName:'google.com',dport:443,
+ hops:[
+{ico:'💻',name:'Your PC',desc:'You type google.com in the browser',
+pkt:'Src MAC: <b>4c:bb:58:1a:2f:9e</b> → Dst MAC: <b>aa:bb:cc:dd:ee:ff</b>\nSrc IP: <b>192.168.1.50</b> → Dst IP: <b>142.250.74.46</b>\nTCP SYN → Port <b>443</b>',
+q:'Your PC sets the destination MAC to aa:bb:cc:dd:ee:ff. Whose MAC is this?',
+opts:["Google's server — the final destination","The local switch — it's the next physical device","The default gateway (router) — because the destination IP is outside the local network","The DNS server — because we need to resolve the domain first"],
+c:2,exp:'The destination IP (142.250.74.46) is NOT on the local subnet (192.168.1.x). So the PC sends the frame to the default gateway\'s MAC. The router will forward it to the internet. This is a fundamental concept: destination MAC = next hop, destination IP = final destination.'},
+
+{ico:'🔀',name:'Layer 2 Switch',desc:'Receives the Ethernet frame',
+pkt:'Frame arrives on port 3\nSwitch MAC table:\n  Port 1: aa:bb:cc:dd:ee:ff (router)\n  Port 3: 4c:bb:58:1a:2f:9e (your PC)\n  Port 5: de:ad:be:ef:ca:fe (server)',
+q:'The frame\'s destination MAC is aa:bb:cc:dd:ee:ff. What does the switch do?',
+opts:["Reads the IP address and routes it to the internet","Broadcasts the frame to ALL ports since it doesn't know the MAC","Looks up aa:bb:cc:dd:ee:ff in its MAC table and forwards ONLY to port 1 (router)","Drops the frame because the destination is external"],
+c:2,exp:'The switch finds aa:bb:cc:dd:ee:ff in its MAC table → port 1. It sends the frame ONLY to that port. Switches never read IP addresses. They forward based on MAC addresses only (Layer 2).'},
+
+{ico:'🛡️',name:'Firewall',desc:'Inspects the packet before allowing it out',
+pkt:'Rule 1: ALLOW TCP to port 80, 443 from internal\nRule 2: DENY TCP to port 4444 from any\nRule 3: DENY ALL from 91.134.188.45\nRule 99: DENY ALL (default)\n\nPacket: 192.168.1.50 → 142.250.74.46:443 TCP [SYN]',
+q:'Will the firewall ALLOW or DENY this packet?',
+opts:["DENY — the default rule blocks everything","ALLOW — Rule 1 matches: TCP to port 443 from internal network","DENY — port 443 is suspicious and should be blocked","ALLOW — firewalls always allow outbound traffic"],
+c:1,exp:'Rule 1 matches first: TCP to port 443 from internal = ALLOW. Rules are checked top-to-bottom, first match wins. Even though Rule 99 says DENY ALL, Rule 1 already matched and allowed this packet.'},
+
+{ico:'🌐',name:'ISP Router (Hop 1)',desc:'First router outside your network',
+pkt:'Incoming frame:\n  Src MAC: <b>your-router-mac</b>\n  Dst MAC: <b>isp-router-mac</b>\n  Src IP: <b>192.168.1.50</b> (NAT → 203.0.113.5)\n  Dst IP: <b>142.250.74.46</b>\n  TTL: <b>128 → 127</b>',
+q:'The router changes the source IP from 192.168.1.50 to 203.0.113.5. What is this called?',
+opts:["IP spoofing — the router is hiding your identity","NAT (Network Address Translation) — translates your private IP to a public IP for the internet","ARP resolution — mapping IP to MAC address","Port forwarding — redirecting traffic to a different port"],
+c:1,exp:'NAT translates your private IP (192.168.1.x) to a public IP. Private IPs cannot be routed on the internet. Every home/office router does this. The router also decreases TTL by 1 (128→127) at each hop.'},
+
+{ico:'🌐',name:'Internet Backbone (Hop 7)',desc:'Core internet router',
+pkt:'TTL: <b>121</b> (decreased at each hop)\nSrc IP: 203.0.113.5 (unchanged since NAT)\nDst IP: 142.250.74.46 (unchanged since start)\nSrc MAC: <b>changed</b> (this hop\'s router)\nDst MAC: <b>changed</b> (next hop\'s router)',
+q:'The packet has traveled 7 hops. What has changed and what stayed the same?',
+opts:["Everything changed — the packet is completely rewritten at each hop","Nothing changed — the packet is identical at every router","MAC addresses changed at every hop, but source and destination IP stayed the same the entire journey","IP addresses changed at every hop, MAC addresses stayed the same"],
+c:2,exp:'This is THE most important concept: Layer 2 (MAC) = local delivery, changes at every hop. Layer 3 (IP) = end-to-end addressing, stays the same from source to destination. The only exception is NAT (which already happened at your router).'},
+
+{ico:'🔀',name:'Google\'s Switch',desc:'Datacenter switch in Google\'s network',
+pkt:'Frame destination MAC: <b>de:ad:ca:fe:00:01</b>\nMAC table has 200+ servers\nMatches port 47: google web server',
+q:'How is this datacenter switch different from your home switch?',
+opts:["It reads IP addresses because it's in a datacenter","It works exactly the same — reads destination MAC, forwards to correct port. Layer 2 is Layer 2 everywhere.","It broadcasts to all servers and lets them sort it out","It uses DNS to find the right server"],
+c:1,exp:'A switch is a switch. Whether it costs $50 or $50,000, it reads destination MAC and forwards to the correct port. Layer 2 behavior is identical everywhere.'},
+
+{ico:'🖥️',name:'Google Web Server',desc:'The packet arrived!',
+pkt:'Server processes layers bottom-up:\n  L1: electrical signals → bits\n  L2: strip Ethernet header (check dst MAC = mine)\n  L3: strip IP header (check dst IP = mine)\n  L4: strip TCP header (port 443, SYN flag)\n  L7: TLS handshake begins',
+q:'The server sees TCP SYN on port 443. What does it send back?',
+opts:["HTTP 200 OK — the webpage content","RST — to reset the connection","SYN-ACK — step 2 of the 3-way handshake to establish the TCP connection","ACK — to acknowledge the data received"],
+c:2,exp:'SYN → SYN-ACK → ACK. The server responds with SYN-ACK (step 2). Only after the 3-way handshake completes does TLS negotiation begin, and THEN HTTP data flows.'},
+]},
+
+{name:'Suspicious traffic — port 4444 outbound',
+ src:'192.168.1.51',dst:'91.134.188.45',dstName:'malicious C2',dport:4444,
+ hops:[
+{ico:'💻',name:'Compromised PC',desc:'Malware is trying to connect to C2 server',
+pkt:'Process: svchost_update.exe (MALWARE)\nSrc IP: 192.168.1.51 → Dst IP: 91.134.188.45\nTCP SYN → Port <b>4444</b>',
+q:'The malware connects to port 4444. Why does it use THIS port?',
+opts:["Port 4444 is a standard Windows service port","Port 4444 is Metasploit's default listener port — the attacker's C2 server is waiting here","Port 4444 is for encrypted web traffic","It's a random port with no significance"],
+c:1,exp:'Port 4444 = Metasploit default. Attackers use it because Metasploit generates reverse shells that connect back to the attacker on port 4444 by default. Experienced attackers change this port, but many don\'t bother.'},
+
+{ico:'🔀',name:'Switch',desc:'Forwards the frame normally',
+pkt:'Switch has no opinion on port numbers.\nIt only reads MAC addresses.\nFrame forwarded to port 1 (router).',
+q:'Can the switch detect that this is malicious traffic?',
+opts:["Yes — switches inspect port numbers and block suspicious ones","Yes — switches have built-in antivirus","No — switches only read MAC addresses (Layer 2). They cannot see port numbers (Layer 4) or detect malware.","No — but it slows down suspicious traffic"],
+c:2,exp:'Switches are Layer 2 devices. They see ONLY MAC addresses. They cannot read IP addresses, port numbers, or payload. A switch will forward malware just as happily as legitimate traffic.'},
+
+{ico:'🛡️',name:'Firewall',desc:'Last chance to stop this!',
+pkt:'Rule 1: ALLOW TCP 80, 443 from internal\nRule 2: DENY TCP 4444 from any  ← EXISTS!\nRule 99: DENY ALL\n\nPacket: 192.168.1.51 → 91.134.188.45:4444 TCP',
+q:'This firewall HAS a rule to block port 4444. What happens?',
+opts:["ALLOW — Rule 1 allows all TCP traffic","DENY — Rule 2 blocks TCP to port 4444. The malware cannot connect to the C2 server. Attack stopped!","ALLOW — outbound traffic is never filtered","DENY — but only temporarily, the malware retries and gets through"],
+c:1,exp:'Rule 2 matches: DENY TCP 4444. The packet is DROPPED. The malware cannot establish the C2 connection. This is why egress filtering (blocking suspicious outbound ports) is critical. Without Rule 2, the attack succeeds.'},
+]},
+
+{name:'DNS query for a phishing site',
+ src:'192.168.1.52',dst:'192.168.1.10',dstName:'DNS server',dport:53,
+ hops:[
+{ico:'💻',name:'Victim PC',desc:'User clicked a phishing link to secure-login.evil.com',
+pkt:'Browser: GET https://secure-login.evil.com\nStep 1: Need to resolve secure-login.evil.com → IP\nDNS query: A record for secure-login.evil.com\nProtocol: <b>UDP</b>, Dst port: <b>53</b>',
+q:'Why does DNS use UDP instead of TCP for this query?',
+opts:["UDP encrypts DNS queries for privacy","UDP is faster — DNS queries are small (one question, one answer), so the overhead of TCP's handshake is unnecessary","UDP guarantees delivery which DNS needs","TCP cannot carry DNS packets"],
+c:1,exp:'DNS queries are tiny. TCP\'s 3-way handshake would triple the time for a simple lookup. UDP sends one packet, gets one response. If it fails, just retry. Speed over reliability for DNS.'},
+
+{ico:'🖥️',name:'Local DNS Server',desc:'192.168.1.10 — company DNS resolver',
+pkt:'Query: A record for secure-login.evil.com\nLocal cache: NOT FOUND\nForward to: root DNS server',
+q:'The DNS server doesn\'t have this domain cached. What\'s the correct resolution path?',
+opts:["Ask Google directly for the IP","Root server → .com TLD server → evil.com authoritative NS → get IP for secure-login.evil.com","Ask the user's browser for the cached IP","Broadcast the query to all devices on the network"],
+c:1,exp:'DNS hierarchy: Root knows who handles .com → .com TLD knows who handles evil.com → evil.com\'s nameserver knows the IP for secure-login.evil.com. This takes 3-4 extra queries but the answer gets cached.'},
+
+{ico:'🛡️',name:'DNS Security Filter',desc:'Company DNS filter checks the domain reputation',
+pkt:'Domain: secure-login.evil.com\nReputation database lookup:\n  evil.com → KNOWN MALICIOUS DOMAIN\n  Category: phishing\n  First seen: 2 days ago\n  SSL cert: self-signed',
+q:'The DNS filter detects this is a known phishing domain. What should it do?',
+opts:["Resolve it normally — users should decide for themselves","Block the resolution and return NXDOMAIN or a warning page. Never let the user reach the phishing site.","Allow it but log it for later review","Slow down the response to discourage the user"],
+c:1,exp:'DNS filtering blocks resolution of known malicious domains. Instead of returning the real IP, it returns a block page IP or NXDOMAIN. The user never reaches the phishing site. This is why DNS security (like Pi-hole, Cisco Umbrella) is a critical layer of defense.'},
+]},
+];
+
+let scIdx=0,hopIdx=0,score=0,totalCorrect=0,totalQ=0;
+
+function render(){
+  const sc=SCENARIOS[scIdx];
+  if(!sc){showEnd();return;}
+  document.getElementById('h-sc').textContent=(scIdx+1)+'/'+SCENARIOS.length;
+  document.getElementById('h-hop').textContent=(hopIdx+1)+'/'+sc.hops.length;
+  document.getElementById('h-score').textContent=score;
+
+  // Path visualization
+  document.getElementById('path-vis').innerHTML=sc.hops.map((h,i)=>{
+    let cls='pv-node ';
+    if(i<hopIdx)cls+=h._ok?'done':'fail';
+    else if(i===hopIdx)cls+='current';
+    else cls+='locked';
+    return(i>0?`<span class="pv-arrow${i<=hopIdx?' active':''}">→</span>`:'')+`<div class="${cls}">${h.ico}</div>`;
+  }).join('');
+
+  const hop=sc.hops[hopIdx];
+  if(!hop){
+    // Scenario complete, move to next
+    scIdx++;hopIdx=0;
+    if(scIdx<SCENARIOS.length){
+      document.getElementById('content').innerHTML=`<div class="q-card active" style="text-align:center;padding:30px">
+        <h2 style="color:#4ade80;font-size:24px">Scenario ${scIdx} complete!</h2>
+        <p style="color:#888;margin:12px 0">Next: ${SCENARIOS[scIdx].name}</p>
+        <button class="restart" onclick="render()" style="font-size:14px;padding:10px 24px">Continue →</button>
+      </div>`;
+    } else showEnd();
+    return;
+  }
+
+  document.getElementById('content').innerHTML=`
+<div class="q-card active">
+<div class="qc-device"><span class="qc-ico">${hop.ico}</span><div class="qc-info"><div class="qc-name">${hop.name}</div><div class="qc-desc">${hop.desc}</div></div></div>
+<div class="qc-pkt">${hop.pkt.replace(/\n/g,'<br>')}</div>
+<div class="qc-question">${hop.q}</div>
+<div class="qc-opts">${hop.opts.map((o,i)=>`<div class="qc-opt" onclick="answer(${i})">${o}</div>`).join('')}</div>
+<div class="qc-explain" id="explain"></div>
+</div>`;
+}
+
+function answer(pick){
+  const hop=SCENARIOS[scIdx].hops[hopIdx];
+  if(hop._answered)return;
+  hop._answered=true;totalQ++;
+  const ok=pick===hop.c;
+  hop._ok=ok;
+  if(ok){score+=100;totalCorrect++;}
+
+  document.querySelectorAll('.qc-opt').forEach((o,i)=>{
+    o.classList.add('locked');
+    if(i===hop.c)o.classList.add('correct');
+    else if(i===pick&&!ok)o.classList.add('wrong');
+  });
+
+  const exp=document.getElementById('explain');
+  exp.className='qc-explain on '+(ok?'ok':'no');
+  exp.textContent=(ok?'✓ Correct! ':'✗ Wrong. ')+hop.exp;
+
+  hopIdx++;
+  setTimeout(render,ok?1500:3000);
+}
+
+function showEnd(){
+  document.getElementById('content').innerHTML='';
+  document.getElementById('path-vis').innerHTML='';
+  const pct=totalQ?Math.round(totalCorrect/totalQ*100):0;
+  const e=document.getElementById('endcard');
+  e.className='end-card on';
+  e.innerHTML=`<h2 style="color:${pct>=80?'#4ade80':'#fbbf24'}">${pct}%</h2>
+<p>${totalCorrect}/${totalQ} correct across all scenarios.<br>
+${pct>=90?'Outstanding! You understand how packets travel through networks.':pct>=70?'Good work. Review the ones you missed — especially MAC vs IP addressing.':'Review the explanations carefully. The key concepts: MAC = local hop, IP = end-to-end, firewalls check L3+L4, switches only see L2.'}</p>
+<button class="restart" onclick="location.reload()">Play again →</button>`;
+}
+
+render();
+</script>
+</body></html>

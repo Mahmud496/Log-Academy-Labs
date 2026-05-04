@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Network Troubleshoot Lab</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Serif+Display&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{height:100vh;display:flex;flex-direction:column;background:#0c0c0c;font-family:'DM Sans',sans-serif;color:#ccc;overflow:hidden}
+.topbar{height:44px;background:#1a1a2e;border-bottom:2px solid #2a2a4e;display:flex;align-items:center;padding:0 16px;gap:12px;flex-shrink:0}
+.topbar h1{font-family:'DM Serif Display',serif;font-size:16px;color:#e0e0f0}
+.topbar h1 span{color:#ff6b6b}
+.tb-prog{margin-left:auto;font-family:'IBM Plex Mono';font-size:11px;color:#818cf8}
+.ticket-bar{background:#1e1015;border-bottom:2px solid #3a1525;padding:10px 16px;flex-shrink:0;display:flex;gap:12px;align-items:flex-start}
+.tk-badge{font-size:9px;font-weight:700;color:#fff;background:#EF4444;padding:3px 10px;border-radius:99px;flex-shrink:0;margin-top:2px}
+.tk-body{flex:1}
+.tk-title{font-size:13px;font-weight:700;color:#ff9f9f;margin-bottom:2px}
+.tk-msg{font-size:12px;color:#a07070;line-height:1.6}
+.tk-nav{display:flex;gap:4px;flex-shrink:0}
+.tk-btn{padding:6px 14px;border-radius:6px;border:1px solid #3a1525;background:#2a1020;cursor:pointer;font-size:11px;font-weight:600;color:#ff9f9f;font-family:'DM Sans'}
+.tk-btn:hover{border-color:#ff6b6b}
+.tk-btn:disabled{opacity:.3;cursor:not-allowed}
+.tk-btn.primary{background:#ff6b6b;color:#1a0a0a;border-color:#ff6b6b}
+
+.main{display:flex;flex:1;overflow:hidden}
+.terminal-wrap{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.terminal{flex:1;overflow-y:auto;padding:10px 14px;font-family:'IBM Plex Mono',monospace;font-size:11px;line-height:1.8;white-space:pre-wrap;word-wrap:break-word;background:#0c0c0c}
+.terminal .prompt{color:#16c60c}.terminal .out{color:#ccc}.terminal .err{color:#f14c4c}.terminal .info{color:#3b86f0}.terminal .ok{color:#16c60c}.terminal .warn{color:#e5e510}.terminal .head{color:#e5e510}
+.input-line{display:flex;align-items:center;padding:4px 14px 10px;flex-shrink:0}
+.input-prompt{color:#16c60c;font-family:'IBM Plex Mono',monospace;font-size:11px;white-space:pre;flex-shrink:0}
+.input-field{flex:1;background:transparent;border:none;color:#e0e0e0;font-family:'IBM Plex Mono',monospace;font-size:11px;outline:none;caret-color:#16c60c}
+
+/* Diagnosis panel */
+.diag-panel{width:280px;background:#141420;border-left:2px solid #2a2a4e;display:flex;flex-direction:column;flex-shrink:0;overflow:hidden}
+.dp-hdr{padding:10px 14px;border-bottom:1px solid #2a2a4e;font-size:11px;font-weight:700;color:#818cf8}
+.dp-body{flex:1;overflow-y:auto;padding:12px}
+.dp-section{font-size:9px;font-weight:700;color:#555;text-transform:uppercase;letter-spacing:1px;margin:10px 0 6px}
+.dp-hint{font-size:10px;color:#555;line-height:1.6;margin-bottom:10px;padding:8px;background:#1a1a2e;border-radius:6px;border:1px solid #2a2a4e}
+.dp-cmds{display:flex;flex-direction:column;gap:3px;margin-bottom:12px}
+.dp-cmd{font-family:'IBM Plex Mono';font-size:10px;color:#16c60c;cursor:pointer;padding:4px 8px;border-radius:4px;background:#0c0c0c;border:1px solid #222}
+.dp-cmd:hover{border-color:#16c60c;background:#0f1f0f}
+.dp-layer-opts{display:flex;flex-direction:column;gap:4px}
+.dp-lo{padding:8px 12px;border-radius:6px;border:1.5px solid #2a2a4e;cursor:pointer;font-size:11px;font-weight:600;transition:all .1s;text-align:center}
+.dp-lo:hover:not(.locked){border-color:#818cf8;background:rgba(129,140,248,.06)}
+.dp-lo.correct{border-color:#4ade80;background:rgba(74,222,128,.1);color:#4ade80}
+.dp-lo.wrong{border-color:#ff6b6b;background:rgba(255,107,107,.1);color:#ff6b6b}
+.dp-lo.locked{cursor:default;opacity:.5}
+.dp-result{margin-top:8px;padding:8px 10px;border-radius:6px;font-size:10px;line-height:1.6;display:none}
+.dp-result.on{display:block}
+.dp-result.ok{background:rgba(74,222,128,.08);border:1px solid rgba(74,222,128,.2);color:#4ade80}
+.dp-result.no{background:rgba(255,107,107,.08);border:1px solid rgba(255,107,107,.2);color:#ff6b6b}
+</style>
+</head>
+<body>
+<div class="topbar"><h1>Troubleshoot <span>Lab</span></h1><span class="tb-prog" id="prog">Case 1/6</span></div>
+<div class="ticket-bar">
+  <span class="tk-badge">TICKET</span>
+  <div class="tk-body"><div class="tk-title" id="tk-title">—</div><div class="tk-msg" id="tk-msg">—</div></div>
+  <div class="tk-nav">
+    <button class="tk-btn" id="btn-prev" onclick="nav(-1)" disabled>← Prev</button>
+    <button class="tk-btn" id="btn-next" onclick="nav(1)">Next →</button>
+  </div>
+</div>
+<div class="main">
+  <div class="terminal-wrap">
+    <div class="terminal" id="terminal"></div>
+    <div class="input-line"><span class="input-prompt">C:\Users\analyst&gt; </span><input class="input-field" id="cmd" autofocus autocomplete="off" spellcheck="false" onkeydown="if(event.key==='Enter')exec()"/></div>
+  </div>
+  <div class="diag-panel">
+    <div class="dp-hdr">Diagnosis</div>
+    <div class="dp-body" id="dp-body"></div>
+  </div>
+</div>
+
+<script>
+const CASES=[
+{title:'User can\'t access any website',msg:'Employee in Building A reports: "I cannot open any website. Chrome says DNS_PROBE_FINISHED_NXDOMAIN for everything. It was working this morning."',answer:7,answerName:'DNS failure',
+hint:'Start from Layer 1 and work up. Check physical, then IP, then connectivity, then DNS.',
+env:{
+  connected:true,speed:'1 Gbps',mac:'4C-BB-58-1A-2F-9E',
+  ip:'192.168.1.50',mask:'255.255.255.0',gw:'192.168.1.1',dns:'192.168.1.1',dhcp:'192.168.1.1',
+  pingResults:{'192.168.1.1':{ok:true,ms:1},'8.8.8.8':{ok:true,ms:15},'192.168.1.100':{ok:true,ms:1},'google.com':{ok:false,err:'could not find host google.com'},'facebook.com':{ok:false,err:'could not find host facebook.com'}},
+  nslookup:{'google.com':null,'facebook.com':null,'8.8.8.8':null},
+  arpTable:[['192.168.1.1','aa-bb-cc-dd-ee-ff','dynamic']],
+  netstat:[['TCP','192.168.1.50:49152','192.168.1.1:443','ESTABLISHED']],
+},
+explain:'Layer 7 (DNS). Physical OK (cable connected). Layer 3 OK (IP exists, ping gateway works, ping 8.8.8.8 works). But DNS resolution fails — nslookup returns nothing. The DNS server (192.168.1.1) is not resolving names. Fix: change DNS to 8.8.8.8 temporarily, or fix the DNS server.'},
+
+{title:'New PC has no connectivity at all',msg:'A new workstation was set up today. It has no network access at all — can\'t ping anything, no IP address showing in the taskbar.',answer:3,answerName:'No IP (DHCP failure)',
+hint:'The very basics: does it have an IP address? What does ipconfig show?',
+env:{
+  connected:true,speed:'1 Gbps',mac:'AA-11-22-33-44-55',
+  ip:'169.254.100.50',mask:'255.255.0.0',gw:'',dns:'',dhcp:'N/A',
+  pingResults:{'192.168.1.1':{ok:false,err:'Destination host unreachable'},'8.8.8.8':{ok:false,err:'Destination host unreachable'},'google.com':{ok:false,err:'could not find host google.com'}},
+  nslookup:{'google.com':null},
+  arpTable:[],
+  netstat:[],
+},
+explain:'Layer 3 (Network/DHCP). Physical is fine (cable connected, 1 Gbps). But ipconfig shows 169.254.x.x — that\'s an APIPA address meaning DHCP failed. No gateway, no DNS. The PC never got a real IP. Fix: check DHCP server, check VLAN assignment, try ipconfig /release then ipconfig /renew.'},
+
+{title:'Can\'t reach the file server by name',msg:'User says: "I can\'t open \\\\fileserver\\shared anymore. Other people can. I was using it fine yesterday."',answer:7,answerName:'DNS / name resolution',
+hint:'Can they reach it by IP? Test both name and IP.',
+env:{
+  connected:true,speed:'1 Gbps',mac:'4C-BB-58-1A-2F-9E',
+  ip:'192.168.1.50',mask:'255.255.255.0',gw:'192.168.1.1',dns:'192.168.1.1',dhcp:'192.168.1.1',
+  pingResults:{'192.168.1.1':{ok:true,ms:1},'192.168.1.100':{ok:true,ms:1},'8.8.8.8':{ok:true,ms:14},'fileserver':{ok:false,err:'could not find host fileserver'},'google.com':{ok:true,ms:16,ip:'142.250.74.46'}},
+  nslookup:{'google.com':'142.250.74.46','fileserver':null,'fileserver.corp.local':null},
+  arpTable:[['192.168.1.1','aa-bb-cc-dd-ee-ff','dynamic'],['192.168.1.100','de-ad-be-ef-ca-fe','dynamic']],
+  netstat:[['TCP','192.168.1.50:49160','192.168.1.100:445','ESTABLISHED']],
+},
+explain:'Layer 7 (DNS). Ping by IP works (192.168.1.100 replies). Ping by name fails. nslookup for "fileserver" returns nothing but google.com resolves fine. The DNS server doesn\'t have a record for "fileserver". Fix: add DNS record or add to local hosts file.'},
+
+{title:'Entire floor offline',msg:'IT Manager: "All 20 PCs on Floor 2 just went dark. No network at all. Floor 1 and 3 are fine. Please check."',answer:1,answerName:'Physical (switch power)',
+hint:'If ALL devices on one floor fail simultaneously, what do they all share?',
+env:{
+  connected:false,speed:'N/A',mac:'4C-BB-58-1A-2F-9E',
+  ip:'No address',mask:'N/A',gw:'N/A',dns:'N/A',dhcp:'N/A',
+  pingResults:{'192.168.1.1':{ok:false,err:'General failure'},'8.8.8.8':{ok:false,err:'General failure'}},
+  nslookup:{},
+  arpTable:[],
+  netstat:[],
+},
+explain:'Layer 1 (Physical). The network adapter shows "Media disconnected" — no physical link at all. Since ALL 20 PCs on the floor failed simultaneously, the shared component is the Floor 2 switch. It likely lost power or crashed. Check: switch power LED, UPS, circuit breaker.'},
+
+{title:'Internet works but internal apps are slow',msg:'Multiple users: "Gmail and YouTube are fast, but our internal CRM at 192.168.1.200 is extremely slow. It takes 20 seconds to load."',answer:4,answerName:'Transport (port/service)',
+hint:'Can they reach the server? Is the service running properly?',
+env:{
+  connected:true,speed:'1 Gbps',mac:'4C-BB-58-1A-2F-9E',
+  ip:'192.168.1.50',mask:'255.255.255.0',gw:'192.168.1.1',dns:'192.168.1.1',dhcp:'192.168.1.1',
+  pingResults:{'192.168.1.1':{ok:true,ms:1},'192.168.1.200':{ok:true,ms:1},'8.8.8.8':{ok:true,ms:12},'google.com':{ok:true,ms:14,ip:'142.250.74.46'}},
+  nslookup:{'google.com':'142.250.74.46','crm.corp.local':'192.168.1.200'},
+  arpTable:[['192.168.1.1','aa-bb-cc-dd-ee-ff','dynamic'],['192.168.1.200','11-22-33-44-55-66','dynamic']],
+  netstat:[['TCP','192.168.1.50:49200','192.168.1.200:443','TIME_WAIT'],['TCP','192.168.1.50:49201','192.168.1.200:443','TIME_WAIT'],['TCP','192.168.1.50:49202','192.168.1.200:443','SYN_SENT'],['TCP','192.168.1.50:49203','192.168.1.200:443','SYN_SENT'],['TCP','192.168.1.50:49204','192.168.1.200:443','SYN_SENT']],
+},
+explain:'Layer 4 (Transport). Ping works (L3 fine). But netstat shows multiple SYN_SENT (trying to connect) and TIME_WAIT (connections closing immediately) to port 443. The web service on the CRM server is overloaded or crashing — it can\'t accept new TCP connections properly. Fix: restart the CRM web service, check server resources.'},
+
+{title:'Suspicious activity detected',msg:'SOC alert: Endpoint WKSTN-042 has unusual outbound traffic patterns. User says everything feels normal. Investigate.',answer:7,answerName:'Application (malware)',
+hint:'Check netstat carefully. Look for unusual ports and external IPs.',
+env:{
+  connected:true,speed:'1 Gbps',mac:'4C-BB-58-1A-2F-9E',
+  ip:'192.168.1.42',mask:'255.255.255.0',gw:'192.168.1.1',dns:'192.168.1.1',dhcp:'192.168.1.1',
+  pingResults:{'192.168.1.1':{ok:true,ms:1},'8.8.8.8':{ok:true,ms:14},'google.com':{ok:true,ms:16,ip:'142.250.74.46'}},
+  nslookup:{'google.com':'142.250.74.46'},
+  arpTable:[['192.168.1.1','aa-bb-cc-dd-ee-ff','dynamic']],
+  netstat:[['TCP','192.168.1.42:49152','142.250.74.46:443','ESTABLISHED'],['TCP','192.168.1.42:49155','91.134.188.45:4444','ESTABLISHED'],['TCP','192.168.1.42:49160','91.134.188.45:8080','ESTABLISHED'],['UDP','192.168.1.42:55555','91.134.188.45:53',''],['TCP','0.0.0.0:445','0.0.0.0:0','LISTENING']],
+},
+explain:'Layer 7 (Application/Malware). Network is fine — all pings work. But netstat reveals: (1) Connection to 91.134.188.45:4444 — Metasploit reverse shell, (2) Connection to same IP on :8080 — possible C2 channel, (3) UDP to same IP on :53 — possible DNS tunneling. This machine is compromised. Action: isolate immediately.'},
+];
+
+let ci=0;
+
+function loadCase(){
+  const c=CASES[ci];
+  document.getElementById('tk-title').textContent=`Case ${ci+1}: ${c.title}`;
+  document.getElementById('tk-msg').textContent=c.msg;
+  document.getElementById('prog').textContent=`Case ${ci+1}/${CASES.length}`;
+  document.getElementById('btn-prev').disabled=ci===0;
+  document.getElementById('btn-next').disabled=ci>=CASES.length-1;
+  document.getElementById('terminal').innerHTML='';
+  out('Network Troubleshoot Lab — Case '+(ci+1),'info');
+  out('Type commands to investigate. Use the diagnosis panel to submit your answer.\n','info');
+  renderPanel();
+}
+
+function nav(d){ci=Math.max(0,Math.min(CASES.length-1,ci+d));loadCase();}
+
+function out(t,cls='out'){const term=document.getElementById('terminal');const s=document.createElement('span');s.className=cls;s.textContent=t+'\n';term.appendChild(s);term.scrollTop=term.scrollHeight;}
+function outH(h){const term=document.getElementById('terminal');const d=document.createElement('div');d.innerHTML=h+'\n';term.appendChild(d);term.scrollTop=term.scrollHeight;}
+
+function renderPanel(){
+  const c=CASES[ci];
+  document.getElementById('dp-body').innerHTML=`
+<div class="dp-section">Quick commands</div>
+<div class="dp-cmds">
+${['ipconfig','ipconfig /all','ping 192.168.1.1','ping 8.8.8.8','ping google.com','nslookup google.com','netstat','arp -a','hostname'].map(cmd=>`<div class="dp-cmd" onclick="document.getElementById('cmd').value='${cmd}';exec()">${cmd}</div>`).join('')}
+</div>
+<div class="dp-section">Hint</div>
+<div class="dp-hint">${c.hint}</div>
+<div class="dp-section">Your diagnosis — which layer is broken?</div>
+<div class="dp-layer-opts" id="layer-opts">
+${[[1,'Physical'],[2,'Data Link'],[3,'Network'],[4,'Transport'],[7,'Application']].map(([n,name])=>{
+  let cls='dp-lo';
+  if(c._answer!==undefined){cls+=' locked';if(n===c.answer)cls+=' correct';else if(n===c._answer)cls+=' wrong';}
+  return`<div class="${cls}" onclick="submitDiag(${n})">L${n}: ${name}</div>`;
+}).join('')}
+</div>
+<div class="dp-result${c._answer!==undefined?' on':''}${c._answer===c.answer?' ok':c._answer!==undefined?' no':''}" id="dp-result">${c._answer!==undefined?c.explain:''}</div>`;
+}
+
+function submitDiag(layer){
+  const c=CASES[ci];if(c._answer!==undefined)return;
+  c._answer=layer;
+  if(layer===c.answer)out('\n✓ Correct diagnosis: '+c.answerName,'ok');
+  else out('\n✗ Incorrect. The answer is Layer '+c.answer+': '+c.answerName,'err');
+  out(c.explain+'\n','info');
+  renderPanel();
+}
+
+function exec(){
+  const input=document.getElementById('cmd');
+  const raw=input.value.trim();input.value='';
+  if(!raw)return;
+  out('C:\\Users\\analyst> '+raw,'prompt');
+  const cmd=raw.toLowerCase().replace(/\s+/g,' ');
+  const c=CASES[ci],e=c.env;
+
+  if(cmd==='cls'){document.getElementById('terminal').innerHTML='';return;}
+  if(cmd==='help'){out('\nCommands: ipconfig, ipconfig /all, ping [target], nslookup [domain], netstat, arp -a, hostname, cls\n','info');return;}
+  if(cmd==='hostname'){out('\nWKSTN-PC-01\n');return;}
+
+  if(cmd==='ipconfig'){
+    out('\nWindows IP Configuration\n','head');
+    out('Ethernet adapter Ethernet0:');
+    out('   Media State . . . . . . . . : '+(e.connected?'Media connected':'Media disconnected'),e.connected?'ok':'err');
+    if(e.connected){
+      out('   IPv4 Address. . . . . . . . : '+e.ip);
+      out('   Subnet Mask . . . . . . . . : '+e.mask);
+      out('   Default Gateway . . . . . . : '+(e.gw||'(blank)'));
+    }
+    out('');return;}
+
+  if(cmd==='ipconfig /all'){
+    out('\nWindows IP Configuration\n','head');
+    out('   Host Name . . . . . . . . . : WKSTN-PC-01');
+    out('\nEthernet adapter Ethernet0:');
+    out('   Media State . . . . . . . . : '+(e.connected?'Media connected':'Media disconnected'),e.connected?'ok':'err');
+    out('   Physical Address. . . . . . : '+e.mac);
+    if(e.connected){
+      out('   DHCP Enabled. . . . . . . . : Yes');
+      out('   IPv4 Address. . . . . . . . : '+e.ip);
+      out('   Subnet Mask . . . . . . . . : '+e.mask);
+      out('   Default Gateway . . . . . . : '+(e.gw||'(blank)'));
+      out('   DNS Servers . . . . . . . . : '+(e.dns||'(blank)'));
+      out('   DHCP Server . . . . . . . . : '+(e.dhcp||'N/A'));
+    }
+    out('');return;}
+
+  if(cmd.startsWith('ping ')){
+    const target=raw.substring(5).trim();
+    const result=e.pingResults[target.toLowerCase()];
+    if(!result){out('\nPing request could not find host '+target+'.\n','err');return;}
+    if(result.ok){
+      const ip=result.ip||target;
+      out(`\nPinging ${target} [${ip}] with 32 bytes of data:`);
+      for(let i=0;i<4;i++)out(`Reply from ${ip}: bytes=32 time=${result.ms+Math.floor(Math.random()*3)}ms TTL=${target.startsWith('192.')?128:56}`,'ok');
+      out(`\nPackets: Sent=4, Received=4, Lost=0 (0% loss)\n`);
+    } else {
+      out(`\nPinging ${target} with 32 bytes of data:`);
+      for(let i=0;i<4;i++)out(result.err,'err');
+      out(`\nPackets: Sent=4, Received=0, Lost=4 (100% loss)\n`,'err');
+    }
+    return;}
+
+  if(cmd.startsWith('nslookup ')){
+    const domain=raw.substring(9).trim().toLowerCase();
+    out('\nServer:  '+(e.dns||'N/A'));
+    out('Address:  '+(e.dns||'N/A')+'#53\n');
+    const result=e.nslookup[domain];
+    if(result===undefined){out(`*** ${e.dns||'server'} can't find ${domain}: Query refused\n`,'err');}
+    else if(result===null){out(`*** ${e.dns||'server'} can't find ${domain}: NXDOMAIN\n`,'err');}
+    else{out('Non-authoritative answer:');out('Name:    '+domain);out('Address:  '+result+'\n');}
+    return;}
+
+  if(cmd==='netstat'||cmd==='netstat -an'){
+    out('\nActive Connections\n','head');
+    out('  Proto  Local Address          Foreign Address        State','warn');
+    if(!e.netstat.length){out('  (none)\n');return;}
+    e.netstat.forEach(r=>{
+      const sus=r[1].includes(':4444')||r[2].includes(':4444')||r[2].includes(':8080')||r[3]==='SYN_SENT';
+      out(`  ${r[0].padEnd(6)}${r[1].padEnd(23)}${r[2].padEnd(23)}${r[3]}`,sus?'err':'out');
+    });
+    out('');return;}
+
+  if(cmd==='arp -a'){
+    if(!e.arpTable.length){out('\nNo ARP entries found.\n','warn');return;}
+    out('\nInterface: '+e.ip+'\n','head');
+    out('  Internet Address      Physical Address       Type','warn');
+    e.arpTable.forEach(r=>out(`  ${r[0].padEnd(22)}${r[1].padEnd(23)}${r[2]}`));
+    out('');return;}
+
+  if(cmd.startsWith('tracert ')){
+    const target=raw.substring(8).trim();
+    const pr=e.pingResults[target.toLowerCase()];
+    if(!pr||!pr.ok){out(`\nUnable to resolve target system name ${target}.\n`,'err');return;}
+    out(`\nTracing route to ${target}...`);
+    out('  1    1ms    '+e.gw);
+    if(!target.startsWith('192.')){out('  2    5ms    10.0.0.1');out('  3    12ms   72.14.232.78');out('  4    '+pr.ms+'ms   '+(pr.ip||target));}
+    out('\nTrace complete.\n');return;}
+
+  out(`'${raw}' is not recognized. Type 'help' for commands.\n`,'err');
+}
+
+document.getElementById('cmd').addEventListener('keydown',function(e){
+  if(e.key==='Tab'){e.preventDefault();const cmds=['ipconfig','ipconfig /all','ping ','nslookup ','netstat','arp -a','hostname','tracert ','cls','help'];const v=this.value.toLowerCase();const match=cmds.find(c=>c.startsWith(v)&&c!==v);if(match)this.value=match;}
+});
+
+loadCase();
+document.addEventListener('click',()=>document.getElementById('cmd').focus());
+</script>
+</body></html>

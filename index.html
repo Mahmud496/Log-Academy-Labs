@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>LogAcademy Labs</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#0a0a14;--card:#12121e;--border:#1e1e2e;--text:#c8c8d8;--muted:#555;--accent:#38bdf8;--green:#4ade80;--purple:#a855f7;--gold:#fbbf24;--red:#ff6b6b;--orange:#fb923c}
+body{min-height:100vh;background:var(--bg);font-family:'Outfit',sans-serif;color:var(--text)}
+a{text-decoration:none;color:inherit}
+
+/* Hero */
+.hero{text-align:center;padding:60px 20px 40px;position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;top:-50%;left:-50%;width:200%;height:200%;background:radial-gradient(ellipse at 50% 0%,rgba(56,189,248,.06) 0%,transparent 50%);pointer-events:none}
+.hero-logo{font-size:14px;font-weight:600;letter-spacing:4px;text-transform:uppercase;color:var(--accent);margin-bottom:12px}
+.hero h1{font-size:clamp(36px,6vw,56px);font-weight:900;line-height:1.1;margin-bottom:12px}
+.hero h1 span{background:linear-gradient(135deg,var(--accent),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hero p{font-size:16px;color:var(--muted);max-width:500px;margin:0 auto;line-height:1.6}
+
+/* Categories */
+.container{max-width:1000px;margin:0 auto;padding:0 20px 60px}
+.category{margin-bottom:40px}
+.cat-hdr{display:flex;align-items:center;gap:12px;margin-bottom:16px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+.cat-icon{font-size:24px}.cat-name{font-size:20px;font-weight:800;flex:1}
+.cat-count{font-family:'IBM Plex Mono';font-size:12px;color:var(--muted);background:var(--card);padding:4px 12px;border-radius:99px;border:1px solid var(--border)}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
+.lab-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;transition:all .2s;cursor:pointer;position:relative;overflow:hidden}
+.lab-card:hover{border-color:var(--accent);transform:translateY(-3px);box-shadow:0 8px 24px rgba(56,189,248,.08)}
+.lab-card::after{content:'→';position:absolute;top:16px;right:16px;font-size:16px;color:var(--muted);transition:all .2s}
+.lab-card:hover::after{color:var(--accent);transform:translateX(4px)}
+.lc-emoji{font-size:28px;margin-bottom:8px}
+.lc-name{font-size:14px;font-weight:700;margin-bottom:4px;color:#e0e0f0}
+.lc-desc{font-size:11px;color:var(--muted);line-height:1.5}
+.lc-tag{display:inline-block;font-size:9px;font-weight:600;padding:2px 8px;border-radius:99px;margin-top:8px}
+.tag-game{background:rgba(251,191,36,.1);color:var(--gold);border:1px solid rgba(251,191,36,.15)}
+.tag-sim{background:rgba(56,189,248,.1);color:var(--accent);border:1px solid rgba(56,189,248,.15)}
+.tag-lab{background:rgba(74,222,128,.1);color:var(--green);border:1px solid rgba(74,222,128,.15)}
+.tag-ctf{background:rgba(255,107,107,.1);color:var(--red);border:1px solid rgba(255,107,107,.15)}
+.tag-build{background:rgba(168,85,247,.1);color:var(--purple);border:1px solid rgba(168,85,247,.15)}
+
+.footer{text-align:center;padding:20px;color:var(--muted);font-size:11px;border-top:1px solid var(--border)}
+</style>
+</head>
+<body>
+<div class="hero">
+<div class="hero-logo">LogAcademy</div>
+<h1>Blue Team <span>Training Labs</span></h1>
+<p>Interactive cybersecurity and networking labs. Click any card to launch.</p>
+</div>
+
+<div class="container">
+
+<div class="category">
+<div class="cat-hdr"><span class="cat-icon">🌐</span><span class="cat-name">Networking Fundamentals</span><span class="cat-count">8 labs</span></div>
+<div class="grid">
+<a href="osi-explorer.html" class="lab-card"><div class="lc-emoji">🧅</div><div class="lc-name">OSI Model Explorer</div><div class="lc-desc">Explore all 7 layers with examples and packet journey</div><span class="lc-tag tag-sim">Explorer</span></a>
+<a href="packet-builder.html" class="lab-card"><div class="lc-emoji">📦</div><div class="lc-name">Packet Builder</div><div class="lc-desc">Build a packet from Layer 7 down to Layer 1</div><span class="lc-tag tag-build">Builder</span></a>
+<a href="osi-sandwich.html" class="lab-card"><div class="lc-emoji">🥪</div><div class="lc-name">OSI Sandwich</div><div class="lc-desc">Drag-drop headers in correct encapsulation order</div><span class="lc-tag tag-game">Game</span></a>
+<a href="network-builder.html" class="lab-card"><div class="lc-emoji">🏗️</div><div class="lc-name">Network Builder</div><div class="lc-desc">Drag devices, connect cables, build a network</div><span class="lc-tag tag-build">Builder</span></a>
+<a href="cmd-simulator.html" class="lab-card"><div class="lc-emoji">💻</div><div class="lc-name">CMD Simulator</div><div class="lc-desc">Practice ipconfig, ping, tracert, nslookup, netstat</div><span class="lc-tag tag-lab">Lab</span></a>
+<a href="debug-network.html" class="lab-card"><div class="lc-emoji">🔧</div><div class="lc-name">Debug Network</div><div class="lc-desc">6 broken networks — find and fix each problem</div><span class="lc-tag tag-lab">Lab</span></a>
+<a href="trace-route-game.html" class="lab-card"><div class="lc-emoji">🗺️</div><div class="lc-name">Trace the Route</div><div class="lc-desc">Packet travels through devices — answer what each checks</div><span class="lc-tag tag-game">Game</span></a>
+<a href="networking-jeopardy.html" class="lab-card"><div class="lc-emoji">🏆</div><div class="lc-name">Network Jeopardy</div><div class="lc-desc">Team trivia game — 5 categories, 25 questions</div><span class="lc-tag tag-game">Game</span></a>
+</div></div>
+
+<div class="category">
+<div class="cat-hdr"><span class="cat-icon">🔗</span><span class="cat-name">TCP/UDP & Protocols</span><span class="cat-count">5 labs</span></div>
+<div class="grid">
+<a href="tcp-handshake.html" class="lab-card"><div class="lc-emoji">🤝</div><div class="lc-name">TCP Handshake Simulator</div><div class="lc-desc">Watch SYN → SYN-ACK → ACK step by step</div><span class="lc-tag tag-sim">Simulator</span></a>
+<a href="tcp-practice.html" class="lab-card"><div class="lc-emoji">✍️</div><div class="lc-name">TCP Handshake Practice</div><div class="lc-desc">Build the handshake yourself — choose flags and seq numbers</div><span class="lc-tag tag-lab">Lab</span></a>
+<a href="tcp-udp-race.html" class="lab-card"><div class="lc-emoji">🏁</div><div class="lc-name">TCP vs UDP Race</div><div class="lc-desc">Watch them race, then choose the right protocol for each scenario</div><span class="lc-tag tag-game">Game</span></a>
+<a href="protocol-game.html" class="lab-card"><div class="lc-emoji">❓</div><div class="lc-name">What Protocol Am I?</div><div class="lc-desc">Read clues, identify the protocol — 14 rounds</div><span class="lc-tag tag-game">Game</span></a>
+<a href="port-speed.html" class="lab-card"><div class="lc-emoji">⚡</div><div class="lc-name">Port Speed Run</div><div class="lc-desc">Type port numbers as fast as you can — 60 seconds</div><span class="lc-tag tag-game">Game</span></a>
+</div></div>
+
+<div class="category">
+<div class="cat-hdr"><span class="cat-icon">🔥</span><span class="cat-name">DNS, DHCP & Firewall</span><span class="cat-count">5 labs</span></div>
+<div class="grid">
+<a href="dns-resolver.html" class="lab-card"><div class="lc-emoji">📖</div><div class="lc-name">DNS Resolver</div><div class="lc-desc">Watch DNS resolve a domain step by step</div><span class="lc-tag tag-sim">Simulator</span></a>
+<a href="dns-zone-builder.html" class="lab-card"><div class="lc-emoji">🏗️</div><div class="lc-name">DNS Zone Builder</div><div class="lc-desc">Create A, CNAME, MX records and test them</div><span class="lc-tag tag-build">Builder</span></a>
+<a href="dhcp-simulator.html" class="lab-card"><div class="lc-emoji">📡</div><div class="lc-name">DHCP Simulator</div><div class="lc-desc">DORA process — Discover, Offer, Request, Acknowledge</div><span class="lc-tag tag-sim">Simulator</span></a>
+<a href="firewall-lab.html" class="lab-card"><div class="lc-emoji">🛡️</div><div class="lc-name">Firewall Rule Builder</div><div class="lc-desc">Write allow/deny rules and test traffic against them</div><span class="lc-tag tag-build">Builder</span></a>
+<a href="firewall-game.html" class="lab-card"><div class="lc-emoji">🔥</div><div class="lc-name">You Are the Firewall</div><div class="lc-desc">Packets fly at you — ALLOW or DENY in seconds!</div><span class="lc-tag tag-game">Game</span></a>
+</div></div>
+
+<div class="category">
+<div class="cat-hdr"><span class="cat-icon">🔍</span><span class="cat-name">Troubleshooting & Investigation</span><span class="cat-count">6 labs</span></div>
+<div class="grid">
+<a href="osi-troubleshooter.html" class="lab-card"><div class="lc-emoji">🩺</div><div class="lc-name">OSI Troubleshooter</div><div class="lc-desc">Diagnose problems layer by layer, bottom to top</div><span class="lc-tag tag-lab">Lab</span></a>
+<a href="network-911.html" class="lab-card"><div class="lc-emoji">📞</div><div class="lc-name">Network 911</div><div class="lc-desc">16 incoming calls — identify the broken OSI layer</div><span class="lc-tag tag-game">Game</span></a>
+<a href="troubleshoot-lab.html" class="lab-card"><div class="lc-emoji">🔧</div><div class="lc-name">Troubleshoot Lab</div><div class="lc-desc">Run commands yourself to find the network problem</div><span class="lc-tag tag-lab">Lab</span></a>
+<a href="packet-autopsy.html" class="lab-card"><div class="lc-emoji">🔬</div><div class="lc-name">Packet Autopsy</div><div class="lc-desc">Read packet headers — identify protocols and threats</div><span class="lc-tag tag-lab">Lab</span></a>
+<a href="traffic-dashboard.html" class="lab-card"><div class="lc-emoji">📊</div><div class="lc-name">Live Traffic Dashboard</div><div class="lc-desc">Watch live traffic — flag the suspicious packets</div><span class="lc-tag tag-ctf">Detection</span></a>
+<a href="port-scanner.html" class="lab-card"><div class="lc-emoji">🎯</div><div class="lc-name">Port Scanner Lab</div><div class="lc-desc">Scan hosts, discover open ports, assess security risks</div><span class="lc-tag tag-lab">Lab</span></a>
+</div></div>
+
+<div class="category">
+<div class="cat-hdr"><span class="cat-icon">🕵️</span><span class="cat-name">CTF Investigations</span><span class="cat-count">2 labs</span></div>
+<div class="grid">
+<a href="network-detective.html" class="lab-card"><div class="lc-emoji">🕵️</div><div class="lc-name">Network Detective — Case 1</div><div class="lc-desc">Company hacked — investigate 5 hosts, find the breach</div><span class="lc-tag tag-ctf">CTF</span></a>
+<a href="network-detective-2.html" class="lab-card"><div class="lc-emoji">🕵️</div><div class="lc-name">Network Detective — Case 2</div><div class="lc-desc">Phishing attack — trace the entry point, find stolen data</div><span class="lc-tag tag-ctf">CTF</span></a>
+</div></div>
+
+<div class="category">
+<div class="cat-hdr"><span class="cat-icon">🔐</span><span class="cat-name">Cybersecurity Awareness</span><span class="cat-count">3 labs</span></div>
+<div class="grid">
+<a href="safe-or-dangerous.html" class="lab-card"><div class="lc-emoji">⚠️</div><div class="lc-name">Safe or Dangerous?</div><div class="lc-desc">15 real-world scenarios — phishing, USB drops, rogue Wi-Fi</div><span class="lc-tag tag-game">Game</span></a>
+<a href="encryption-lab.html" class="lab-card"><div class="lc-emoji">🔐</div><div class="lc-name">What is Encryption?</div><div class="lc-desc">Caesar cipher, XOR, HTTP vs HTTPS, crack challenges</div><span class="lc-tag tag-lab">Lab</span></a>
+<a href="who-sees-data.html" class="lab-card"><div class="lc-emoji">👁️</div><div class="lc-name">Who Can See My Data?</div><div class="lc-desc">Your data's journey — who sees what at each hop</div><span class="lc-tag tag-sim">Explorer</span></a>
+</div></div>
+
+</div>
+
+<div class="footer">LogAcademy — Blue Team Cybersecurity Training</div>
+</body></html>

@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Network Command Line Simulator</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=DM+Sans:wght@400;600;700&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{height:100vh;display:flex;flex-direction:column;background:#0c0c0c;font-family:'IBM Plex Mono',monospace;color:#cccccc;font-size:13px}
+
+/* Top bar mimics Windows CMD title bar */
+.title-bar{height:32px;background:#1e1e1e;display:flex;align-items:center;padding:0 12px;gap:8px;border-bottom:1px solid #333;flex-shrink:0;font-family:'DM Sans',sans-serif}
+.tb-ico{font-size:12px}.tb-title{font-size:11px;color:#aaa;flex:1}
+.tb-btns{display:flex;gap:2px}
+.tb-btn{width:28px;height:20px;display:flex;align-items:center;justify-content:center;font-size:10px;color:#888;cursor:pointer;border-radius:2px}
+.tb-btn:hover{background:#333}
+
+/* Task panel */
+.task-bar{background:#1a1a2e;border-bottom:1px solid #2a2a4e;padding:10px 16px;display:flex;align-items:center;gap:12px;flex-shrink:0;font-family:'DM Sans',sans-serif}
+.task-badge{font-size:10px;font-weight:700;color:#818cf8;background:rgba(129,140,248,.1);padding:3px 10px;border-radius:99px;border:1px solid rgba(129,140,248,.2)}
+.task-text{font-size:12px;color:#a0a0b0;flex:1}.task-text strong{color:#e0e0f0}
+.task-hint{font-size:10px;color:#555;cursor:pointer;padding:4px 10px;border-radius:4px;border:1px solid #333}
+.task-hint:hover{color:#818cf8;border-color:#818cf8}
+.task-prog{font-family:'IBM Plex Mono';font-size:11px;color:#818cf8}
+
+/* Terminal */
+.terminal{flex:1;overflow-y:auto;padding:12px 16px;line-height:1.7;white-space:pre-wrap;word-wrap:break-word}
+.terminal .prompt{color:#16c60c}
+.terminal .cmd{color:#e0e0e0}
+.terminal .output{color:#cccccc}
+.terminal .error{color:#f14c4c}
+.terminal .info{color:#3b86f0}
+.terminal .success{color:#16c60c}
+.terminal .header{color:#e5e510}
+.terminal .separator{color:#555}
+.terminal .highlight{color:#13a8c1}
+
+/* Input line */
+.input-line{display:flex;align-items:center;padding:4px 16px 12px;flex-shrink:0;gap:0}
+.input-prompt{color:#16c60c;white-space:pre;flex-shrink:0}
+.input-field{flex:1;background:transparent;border:none;color:#e0e0e0;font-family:'IBM Plex Mono',monospace;font-size:13px;outline:none;caret-color:#16c60c}
+
+/* Help sidebar */
+.help-toggle{position:fixed;top:40px;right:12px;background:#1e1e2e;border:1px solid #333;border-radius:8px;padding:8px 12px;font-size:10px;color:#818cf8;cursor:pointer;font-family:'DM Sans';z-index:10}
+.help-toggle:hover{background:#2a2a3e}
+.help-panel{position:fixed;top:36px;right:0;width:280px;height:calc(100vh - 36px);background:#141420;border-left:1px solid #2a2a4e;padding:14px;overflow-y:auto;z-index:9;display:none;font-family:'DM Sans',sans-serif}
+.help-panel.on{display:block}
+.help-title{font-size:13px;font-weight:700;color:#e0e0f0;margin-bottom:10px}
+.help-cmd{margin-bottom:10px;padding:8px;background:#1a1a2e;border-radius:6px;border:1px solid #2a2a4e}
+.help-cmd-name{font-family:'IBM Plex Mono';font-size:11px;color:#16c60c;font-weight:600;margin-bottom:3px}
+.help-cmd-desc{font-size:10px;color:#888;line-height:1.5}
+.help-cmd-ex{font-family:'IBM Plex Mono';font-size:10px;color:#555;margin-top:3px}
+</style>
+</head>
+<body>
+
+<div class="title-bar">
+  <span class="tb-ico">⬛</span>
+  <span class="tb-title">C:\Windows\System32\cmd.exe — Network Training Simulator</span>
+  <div class="tb-btns"><span class="tb-btn">─</span><span class="tb-btn">□</span><span class="tb-btn" onclick="location.reload()">✕</span></div>
+</div>
+
+<div class="task-bar">
+  <span class="task-badge" id="task-badge">Task 1/8</span>
+  <span class="task-text" id="task-text"><strong>Run ipconfig</strong> — Find your computer's IP address, subnet mask, and default gateway.</span>
+  <span class="task-hint" onclick="showHint()">Hint</span>
+  <span class="task-prog" id="task-prog">0/8</span>
+</div>
+
+<div class="terminal" id="terminal"></div>
+
+<div class="input-line">
+  <span class="input-prompt">C:\Users\analyst&gt; </span>
+  <input class="input-field" id="cmd-input" autofocus autocomplete="off" spellcheck="false" onkeydown="if(event.key==='Enter')execCmd()"/>
+</div>
+
+<div class="help-toggle" onclick="document.querySelector('.help-panel').classList.toggle('on')">📖 Commands</div>
+<div class="help-panel">
+  <div class="help-title">Available Commands</div>
+  <div class="help-cmd"><div class="help-cmd-name">ipconfig</div><div class="help-cmd-desc">Shows IP address, subnet mask, and default gateway for all network adapters</div><div class="help-cmd-ex">Usage: ipconfig</div></div>
+  <div class="help-cmd"><div class="help-cmd-name">ipconfig /all</div><div class="help-cmd-desc">Shows detailed info including MAC address, DHCP, and DNS servers</div><div class="help-cmd-ex">Usage: ipconfig /all</div></div>
+  <div class="help-cmd"><div class="help-cmd-name">ping [target]</div><div class="help-cmd-desc">Tests connectivity to a host. Sends ICMP echo requests and measures response time</div><div class="help-cmd-ex">Usage: ping 192.168.1.1<br>Usage: ping google.com</div></div>
+  <div class="help-cmd"><div class="help-cmd-name">tracert [target]</div><div class="help-cmd-desc">Traces the route packets take to reach a destination, showing every hop</div><div class="help-cmd-ex">Usage: tracert google.com</div></div>
+  <div class="help-cmd"><div class="help-cmd-name">nslookup [domain]</div><div class="help-cmd-desc">Queries DNS to find the IP address of a domain name</div><div class="help-cmd-ex">Usage: nslookup google.com</div></div>
+  <div class="help-cmd"><div class="help-cmd-name">netstat</div><div class="help-cmd-desc">Shows all active network connections and listening ports</div><div class="help-cmd-ex">Usage: netstat<br>Usage: netstat -an</div></div>
+  <div class="help-cmd"><div class="help-cmd-name">arp -a</div><div class="help-cmd-desc">Shows the ARP cache — maps IP addresses to MAC addresses on the local network</div><div class="help-cmd-ex">Usage: arp -a</div></div>
+  <div class="help-cmd"><div class="help-cmd-name">hostname</div><div class="help-cmd-desc">Shows the computer's hostname</div><div class="help-cmd-ex">Usage: hostname</div></div>
+  <div class="help-cmd"><div class="help-cmd-name">cls</div><div class="help-cmd-desc">Clears the terminal screen</div></div>
+  <div class="help-cmd"><div class="help-cmd-name">help</div><div class="help-cmd-desc">Shows available commands</div></div>
+</div>
+
+<script>
+// Simulated network environment
+const ENV={
+  hostname:'WKSTN-PC-01',
+  ip:'192.168.1.50',
+  mask:'255.255.255.0',
+  gateway:'192.168.1.1',
+  mac:'4C-BB-58-1A-2F-9E',
+  dns1:'192.168.1.1',
+  dns2:'8.8.8.8',
+  dhcp:'192.168.1.1',
+  domain:'corp.local',
+};
+
+const DNS_TABLE={
+  'google.com':'142.250.74.46',
+  'www.google.com':'142.250.74.46',
+  'facebook.com':'157.240.1.35',
+  'github.com':'140.82.121.3',
+  'microsoft.com':'20.70.246.20',
+  'cloudflare.com':'104.16.132.229',
+  'example.com':'93.184.216.34',
+  'corp.local':'192.168.1.10',
+  'mail.corp.local':'192.168.1.11',
+};
+
+const ARP_TABLE=[
+  ['192.168.1.1','AA-BB-CC-DD-EE-FF','dynamic'],
+  ['192.168.1.10','00-1A-2B-3C-4D-5E','dynamic'],
+  ['192.168.1.11','00-1A-2B-3C-4D-60','dynamic'],
+  ['192.168.1.20','52-54-00-12-34-56','dynamic'],
+  ['192.168.1.100','DE-AD-BE-EF-CA-FE','dynamic'],
+  ['192.168.1.255','FF-FF-FF-FF-FF-FF','static'],
+];
+
+const NETSTAT_TABLE=[
+  ['TCP','192.168.1.50:49152','142.250.74.46:443','ESTABLISHED'],
+  ['TCP','192.168.1.50:49153','140.82.121.3:443','ESTABLISHED'],
+  ['TCP','192.168.1.50:49160','192.168.1.10:445','ESTABLISHED'],
+  ['TCP','0.0.0.0:135','0.0.0.0:0','LISTENING'],
+  ['TCP','0.0.0.0:445','0.0.0.0:0','LISTENING'],
+  ['TCP','0.0.0.0:3389','0.0.0.0:0','LISTENING'],
+  ['TCP','192.168.1.50:49170','91.134.188.45:4444','ESTABLISHED'],
+  ['UDP','0.0.0.0:53','*:*',''],
+  ['UDP','0.0.0.0:5353','*:*',''],
+];
+
+const TASKS=[
+  {cmd:'ipconfig',text:'<strong>Run ipconfig</strong> — Find your IP address, subnet mask, and default gateway.',hint:'Just type: ipconfig'},
+  {cmd:'ipconfig /all',text:'<strong>Run ipconfig /all</strong> — Find your MAC address and DNS server.',hint:'Type: ipconfig /all — look for "Physical Address" (that\'s the MAC) and "DNS Servers"'},
+  {cmd:'ping',text:'<strong>Ping your gateway</strong> — Test if you can reach your router at 192.168.1.1',hint:'Type: ping 192.168.1.1 — you should get 4 replies if the connection works'},
+  {cmd:'ping',text:'<strong>Ping google.com</strong> — Test if you have internet access.',hint:'Type: ping google.com — if it resolves to an IP and replies, you have internet'},
+  {cmd:'nslookup',text:'<strong>Use nslookup</strong> — Find the IP address of github.com',hint:'Type: nslookup github.com — DNS will return the IP address'},
+  {cmd:'tracert',text:'<strong>Run tracert</strong> — Trace the route to google.com. How many hops?',hint:'Type: tracert google.com — each line is one router hop on the way to Google'},
+  {cmd:'netstat',text:'<strong>Run netstat</strong> — Look at active connections. Can you spot anything suspicious?',hint:'Type: netstat — look for unusual destination IPs or ports. Port 4444 is suspicious!'},
+  {cmd:'arp',text:'<strong>Run arp -a</strong> — View the ARP cache. What maps IP addresses to MAC addresses?',hint:'Type: arp -a — this shows which MAC address belongs to which IP on your local network'},
+];
+
+let taskIdx=0,history=[],histPos=-1;
+
+function out(text,cls='output'){
+  const t=document.getElementById('terminal');
+  const span=document.createElement('span');
+  span.className=cls;
+  span.textContent=text+'\n';
+  t.appendChild(span);
+  t.scrollTop=t.scrollHeight;
+}
+
+function outHTML(html){
+  const t=document.getElementById('terminal');
+  const div=document.createElement('div');
+  div.innerHTML=html;
+  t.appendChild(div);
+  t.scrollTop=t.scrollHeight;
+}
+
+function updateTask(){
+  if(taskIdx>=TASKS.length){
+    document.getElementById('task-text').innerHTML='<strong style="color:#16c60c">All tasks complete!</strong> You now know the essential networking commands.';
+    document.getElementById('task-badge').textContent='Done!';
+  } else {
+    document.getElementById('task-text').innerHTML=TASKS[taskIdx].text;
+    document.getElementById('task-badge').textContent=`Task ${taskIdx+1}/${TASKS.length}`;
+  }
+  document.getElementById('task-prog').textContent=`${Math.min(taskIdx,TASKS.length)}/${TASKS.length}`;
+}
+
+function showHint(){
+  if(taskIdx<TASKS.length)out('\n💡 Hint: '+TASKS[taskIdx].hint+'\n','info');
+}
+
+function advanceTask(cmd){
+  if(taskIdx>=TASKS.length)return;
+  const task=TASKS[taskIdx];
+  if(cmd.startsWith(task.cmd)){taskIdx++;updateTask();if(taskIdx<=TASKS.length)out('✓ Task completed!\n','success');}
+}
+
+function execCmd(){
+  const input=document.getElementById('cmd-input');
+  const raw=input.value.trim();
+  input.value='';
+  if(!raw)return;
+  history.push(raw);histPos=history.length;
+  out('C:\\Users\\analyst> '+raw,'prompt');
+  const cmd=raw.toLowerCase().replace(/\s+/g,' ');
+  
+  if(cmd==='cls'){document.getElementById('terminal').innerHTML='';return;}
+  if(cmd==='help'){cmdHelp();advanceTask(cmd);return;}
+  if(cmd==='hostname'){out('\n'+ENV.hostname+'\n');advanceTask(cmd);return;}
+  if(cmd==='ipconfig'){cmdIpconfig(false);advanceTask(cmd);return;}
+  if(cmd==='ipconfig /all'){cmdIpconfig(true);advanceTask(cmd);return;}
+  if(cmd.startsWith('ping ')){cmdPing(raw.substring(5).trim());advanceTask('ping');return;}
+  if(cmd.startsWith('tracert ')){cmdTracert(raw.substring(8).trim());advanceTask('tracert');return;}
+  if(cmd.startsWith('nslookup ')){cmdNslookup(raw.substring(9).trim());advanceTask('nslookup');return;}
+  if(cmd==='netstat'||cmd==='netstat -an'||cmd==='netstat -a'){cmdNetstat();advanceTask('netstat');return;}
+  if(cmd==='arp -a'){cmdArp();advanceTask('arp');return;}
+  out(`'${raw}' is not recognized as an internal or external command.\nType 'help' for available commands.\n`,'error');
+}
+
+function cmdHelp(){
+  out('\nAvailable commands:','header');
+  out('  ipconfig          Show IP configuration','output');
+  out('  ipconfig /all     Show detailed IP configuration','output');
+  out('  ping [target]     Test connectivity to a host','output');
+  out('  tracert [target]  Trace route to a destination','output');
+  out('  nslookup [domain] Query DNS for a domain','output');
+  out('  netstat           Show active connections','output');
+  out('  arp -a            Show ARP cache','output');
+  out('  hostname          Show computer name','output');
+  out('  cls               Clear screen','output');
+  out('  help              Show this help\n','output');
+}
+
+function cmdIpconfig(full){
+  out('\nWindows IP Configuration\n','header');
+  out('Ethernet adapter Ethernet0:','highlight');
+  out('');
+  if(full){
+    out('   Description . . . . . . . . : Intel(R) Ethernet Connection I219-V');
+    out('   Physical Address. . . . . . : '+ENV.mac);
+    out('   DHCP Enabled. . . . . . . . : Yes');
+    out('   DHCP Server . . . . . . . . : '+ENV.dhcp);
+  }
+  out('   Connection-specific DNS Suffix: '+ENV.domain);
+  out('   IPv4 Address. . . . . . . . : '+ENV.ip);
+  out('   Subnet Mask . . . . . . . . : '+ENV.mask);
+  out('   Default Gateway . . . . . . : '+ENV.gateway);
+  if(full){
+    out('   DNS Servers . . . . . . . . : '+ENV.dns1);
+    out('                                 '+ENV.dns2);
+    out('   Lease Obtained. . . . . . . : '+new Date().toLocaleDateString());
+    out('   Lease Expires . . . . . . . : '+new Date(Date.now()+86400000*7).toLocaleDateString());
+  }
+  out('');
+}
+
+function cmdPing(target){
+  let ip=target;
+  if(!/^\d+\.\d+\.\d+\.\d+$/.test(target)){
+    ip=DNS_TABLE[target.toLowerCase()];
+    if(!ip){out(`\nPing request could not find host ${target}. Please check the name and try again.\n`,'error');return;}
+  }
+  out(`\nPinging ${target} [${ip}] with 32 bytes of data:\n`);
+  const isLocal=ip.startsWith('192.168.1.');
+  const base=isLocal?1:12;
+  for(let i=0;i<4;i++){
+    const ms=base+Math.floor(Math.random()*(isLocal?3:20));
+    out(`Reply from ${ip}: bytes=32 time=${ms}ms TTL=${isLocal?128:56}`);
+  }
+  out(`\nPing statistics for ${ip}:`);
+  out('    Packets: Sent = 4, Received = 4, Lost = 0 (0% loss),');
+  out('Approximate round trip times in milli-seconds:');
+  out(`    Minimum = ${base}ms, Maximum = ${base+15}ms, Average = ${base+8}ms\n`);
+}
+
+function cmdTracert(target){
+  let ip=target;
+  if(!/^\d+\.\d+\.\d+\.\d+$/.test(target)){
+    ip=DNS_TABLE[target.toLowerCase()];
+    if(!ip){out(`\nUnable to resolve target system name ${target}.\n`,'error');return;}
+  }
+  out(`\nTracing route to ${target} [${ip}]`);
+  out('over a maximum of 30 hops:\n');
+  const hops=[
+    [1,ENV.gateway,1,1,1,'Local gateway (your router)'],
+    [2,'10.0.0.1',5,6,5,'ISP router'],
+    [3,'172.16.0.1',8,9,8,'ISP backbone'],
+    [4,'72.14.232.78',12,14,11,'Internet backbone'],
+    [5,'108.170.250.33',15,16,14,'Google edge'],
+    [6,ip,18,19,17,'Destination'],
+  ];
+  if(ip.startsWith('192.168.1.')){
+    out(`  1    <1 ms    <1 ms    <1 ms  ${ip}`);
+    out('\nTrace complete.\n');
+    return;
+  }
+  hops.forEach(h=>{
+    out(`  ${h[0]}    ${h[2]} ms    ${h[3]} ms    ${h[4]} ms  ${h[1]}`);
+  });
+  out('\nTrace complete.\n');
+}
+
+function cmdNslookup(domain){
+  const ip=DNS_TABLE[domain.toLowerCase()];
+  out('\nServer:  '+ENV.dns1);
+  out('Address:  '+ENV.dns1+'#53\n');
+  if(!ip){out(`** server can\'t find ${domain}: NXDOMAIN\n`,'error');return;}
+  out('Non-authoritative answer:');
+  out('Name:    '+domain);
+  out('Address:  '+ip+'\n');
+}
+
+function cmdNetstat(){
+  out('\nActive Connections\n','header');
+  out('  Proto  Local Address          Foreign Address        State','separator');
+  out('  ─────  ─────────────────────  ─────────────────────  ─────────────','separator');
+  NETSTAT_TABLE.forEach(r=>{
+    const isSuspicious=r[1].includes('4444')||r[2].includes('4444');
+    out(`  ${r[0].padEnd(6)}${r[1].padEnd(23)}${r[2].padEnd(23)}${r[3]}`,isSuspicious?'error':'output');
+  });
+  out('');
+  if(taskIdx>=6){
+    out('⚠ NOTICE: One connection looks suspicious!','info');
+    out('  192.168.1.50:49170 → 91.134.188.45:4444 (ESTABLISHED)','error');
+    out('  Port 4444 is the default Metasploit reverse shell port.','info');
+    out('  This could indicate a compromised machine!\n','info');
+  }
+}
+
+function cmdArp(){
+  out('\nInterface: '+ENV.ip+' --- 0x3','header');
+  out('  Internet Address      Physical Address       Type','separator');
+  out('  ────────────────────  ─────────────────────  ───────','separator');
+  ARP_TABLE.forEach(r=>{
+    out(`  ${r[0].padEnd(22)}${r[1].padEnd(23)}${r[2]}`);
+  });
+  out('');
+}
+
+// Keyboard history navigation
+document.getElementById('cmd-input').addEventListener('keydown',function(e){
+  if(e.key==='ArrowUp'){e.preventDefault();if(histPos>0){histPos--;this.value=history[histPos];}}
+  if(e.key==='ArrowDown'){e.preventDefault();if(histPos<history.length-1){histPos++;this.value=history[histPos];}else{histPos=history.length;this.value='';}}
+});
+
+// Initial output
+out('Microsoft Windows [Version 10.0.19045.4046]');
+out('(c) Microsoft Corporation. All rights reserved.');
+out('');
+out('Network Training Simulator — Practice networking commands in a safe environment.','info');
+out('Type "help" for a list of available commands.\n','info');
+
+updateTask();
+document.getElementById('cmd-input').focus();
+document.addEventListener('click',()=>document.getElementById('cmd-input').focus());
+</script>
+</body></html>

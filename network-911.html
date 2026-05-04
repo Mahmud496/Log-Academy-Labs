@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Network 911</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Serif+Display&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;background:#1a0a0a;font-family:'DM Sans',sans-serif;color:#f0e0e0}
+header{background:#2a0a0a;border-bottom:2px solid #4a1515;padding:0 24px;height:56px;display:flex;align-items:center;gap:16px}
+header h1{font-family:'DM Serif Display',serif;font-size:22px;color:#ff6b6b}header h1 span{color:#fbbf24}
+.hdr-stats{display:flex;gap:16px;margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:13px}
+.stat{display:flex;align-items:center;gap:6px}.stat-v{font-weight:700}
+.stat-score{color:#4ade80}.stat-streak{color:#fbbf24}.stat-prog{color:#94a3b8}
+.game-area{max-width:900px;margin:0 auto;padding:20px}
+.call-card{background:#2a1515;border:2px solid #4a1515;border-radius:14px;padding:20px;margin-bottom:14px;transition:all .2s}
+.call-card.answered{opacity:.6}
+.cc-hdr{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.cc-num{font-family:'IBM Plex Mono';font-size:10px;color:#5a3030;background:#3a1a1a;padding:2px 8px;border-radius:4px}
+.cc-caller{font-size:14px;font-weight:700;color:#ff9f9f;flex:1}
+.cc-priority{font-size:10px;font-weight:700;padding:3px 10px;border-radius:99px}
+.pri-high{background:rgba(255,107,107,.15);color:#ff6b6b;border:1px solid rgba(255,107,107,.3)}
+.pri-med{background:rgba(251,191,36,.12);color:#fbbf24;border:1px solid rgba(251,191,36,.3)}
+.pri-low{background:rgba(74,222,128,.12);color:#4ade80;border:1px solid rgba(74,222,128,.3)}
+.cc-msg{font-size:13px;color:#d4a0a0;line-height:1.7;padding:12px;background:rgba(0,0,0,.3);border-radius:8px;border-left:3px solid #ff6b6b;margin-bottom:12px}
+.cc-clue{font-family:'IBM Plex Mono',monospace;font-size:11px;color:#8a6060;padding:8px 12px;background:rgba(0,0,0,.2);border-radius:6px;margin-bottom:12px;line-height:1.7}
+.cc-q{font-size:13px;font-weight:700;margin-bottom:8px;color:#ffe0e0}
+.cc-layers{display:flex;gap:5px;flex-wrap:wrap}
+.cc-l{padding:8px 14px;border-radius:8px;border:1.5px solid #4a2020;background:rgba(42,21,21,.8);cursor:pointer;font-size:11px;font-weight:600;transition:all .12s;text-align:center;flex:1;min-width:80px}
+.cc-l:hover:not(.locked){border-color:#ff6b6b;background:rgba(255,107,107,.06)}
+.cc-l.correct{border-color:#4ade80;background:rgba(74,222,128,.1);color:#4ade80}
+.cc-l.wrong{border-color:#ff6b6b;background:rgba(255,107,107,.1);color:#ff6b6b}
+.cc-l.locked{cursor:default;opacity:.5}
+.cc-result{margin-top:10px;padding:10px 14px;border-radius:8px;font-size:12px;line-height:1.6;display:none}
+.cc-result.on{display:block}
+.cc-result.ok{background:rgba(74,222,128,.08);border:1px solid rgba(74,222,128,.2);color:#4ade80}
+.cc-result.no{background:rgba(255,107,107,.08);border:1px solid rgba(255,107,107,.2);color:#ff6b6b}
+.end-bar{background:#2a1515;border:2px solid #4a1515;border-radius:14px;padding:20px;text-align:center;margin-top:16px;display:none}
+.end-bar.on{display:block}
+.end-bar h2{font-family:'DM Serif Display',serif;color:#ff6b6b;font-size:24px;margin-bottom:6px}
+.end-stats{display:flex;gap:16px;justify-content:center;margin:12px 0}
+.es{background:#3a1a1a;border-radius:10px;padding:12px 20px;text-align:center}
+.es-v{font-family:'IBM Plex Mono';font-size:28px;font-weight:700}.es-k{font-size:10px;color:#8a6060;margin-top:2px}
+.restart{padding:10px 28px;border-radius:99px;border:2px solid #ff6b6b;background:transparent;color:#ff6b6b;font-size:14px;font-weight:700;cursor:pointer;font-family:'DM Sans';margin-top:8px}
+</style>
+</head>
+<body>
+<header>
+<h1>Network <span>911</span></h1>
+<div class="hdr-stats">
+<div class="stat stat-score">✓ <span class="stat-v" id="score">0</span></div>
+<div class="stat stat-streak">🔥 <span class="stat-v" id="streak">0</span></div>
+<div class="stat stat-prog"><span class="stat-v" id="prog">0/16</span></div>
+</div></header>
+<div class="game-area" id="game"></div>
+<script>
+const I=[
+{caller:'Reception',pri:'high',msg:'Laptop has no network. Plugged the cable in, nothing happens.',
+clue:'Network adapter: Media disconnected\nLink light on NIC: OFF\nLink light on switch port: OFF',answer:1,
+explain:'Layer 1 (Physical) — No link light on either end means no physical connection. Check: cable damaged? Wrong port? Cable not fully seated? Try a different cable or port.'},
+
+{caller:'Marketing team',pri:'med',msg:'Network is incredibly slow for everyone on our floor. Pages take forever.',
+clue:'Network device on the floor: HUB (24 ports, 22 devices connected)\nCollisions detected: 38,204\nPackets dropped: 5,891',answer:2,
+explain:'Layer 2 (Data Link) — A hub broadcasts everything, causing massive collisions with 22 devices. Replace with a SWITCH that sends frames only to the correct port using MAC addresses.'},
+
+{caller:'Floor 3 admin',pri:'high',msg:'All 15 computers on Floor 3 lost connectivity simultaneously. Floors 1,2,4 are fine.',
+clue:'Floor 3 switch: All port lights OFF\nSwitch power LED: OFF\nUPS on Floor 3: battery depleted, no power',answer:1,
+explain:'Layer 1 (Physical) — Switch has no power. All lights off = physical power failure. Check UPS, power cable, circuit breaker. Entire floor goes down because the switch is the single point of failure (star topology).'},
+
+{caller:'New employee',pri:'low',msg:'I set up my PC but I can\'t reach anything on the network. Others next to me are fine.',
+clue:'ipconfig shows: IP 169.254.x.x (APIPA address)\nSubnet: 255.255.0.0\nGateway: blank\nDHCP server: not reachable',answer:3,
+explain:'Layer 3 (Network) — 169.254.x.x is an APIPA address, meaning DHCP failed. The PC couldn\'t get a real IP from the DHCP server. Check: DHCP server running? Port on switch active? Cable OK? Fix: restart DHCP service or assign static IP.'},
+
+{caller:'Server room',pri:'high',msg:'Multiple users getting disconnected randomly. Switch logs show MAC flapping warnings.',
+clue:'Switch log: MAC aa:bb:cc:dd:ee:ff flapping between port 3 and port 7\nARP table: DUPLICATE gateway entries\nTwo devices claiming to be 192.168.1.1',answer:2,
+explain:'Layer 2 (Data Link) — MAC flapping + duplicate gateway = either ARP spoofing attack or a network loop. An attacker or rogue device is pretending to be the gateway. Check: unauthorized devices on ports 3 and 7. Could also be a cable creating a loop between two switch ports.'},
+
+{caller:'CEO office',pri:'high',msg:'Computer is extremely slow. Fan running full speed. I didn\'t install anything.',
+clue:'netstat: TCP 192.168.1.5:49200 → 91.134.188.45:4444 ESTABLISHED\nCPU: 95% — process: svchost_update.exe\nThis is NOT a real Windows process name',answer:7,
+explain:'Layer 7 (Application) — Port 4444 = Metasploit reverse shell. Fake process name. This machine is COMPROMISED with malware. Network is fine — the application layer is the problem. Action: isolate endpoint immediately, investigate the C2 IP.'},
+
+{caller:'Accounting',pri:'med',msg:'I can browse the internet fine, but portal.company.local won\'t load. My colleague says it works for her.',
+clue:'ping portal.company.local → "could not find host"\nping 192.168.1.200 → Reply OK!\nnslookup portal.company.local → NXDOMAIN\nColleague has 192.168.1.200 bookmarked by IP',answer:7,
+explain:'Layer 7 (Application/DNS) — Server works by IP but not by name. DNS doesn\'t have a record for portal.company.local. The colleague bypasses DNS by using the IP directly. Fix: add DNS A record.'},
+
+{caller:'Remote worker (VPN)',pri:'med',msg:'VPN connected but everything is painfully slow. 30 seconds per page.',
+clue:'ping company-server: Reply time 480ms (normally 15ms)\ntracert: 24 hops (normally 8)\nUser recently relocated to another continent',answer:3,
+explain:'Layer 3 (Network/Routing) — 480ms latency and 24 hops = traffic routing through a very long path due to geographic distance. Fix: connect to a closer VPN gateway, or use split tunneling so only company traffic goes through VPN.'},
+
+{caller:'HR department',pri:'med',msg:'Emails are stuck in my Outbox. I can browse websites fine.',
+clue:'Outlook error: Cannot connect to mail.company.com port 587\nping mail.company.com → Reply OK\ntelnet mail.company.com 587 → Connection refused\ntelnet mail.company.com 443 → Connected (webmail works)',answer:4,
+explain:'Layer 4 (Transport) — Server is reachable (ping OK = L3 fine) but TCP port 587 (SMTP submission) is refusing connections. Either the SMTP service crashed or a firewall rule is blocking port 587. Port 443 (webmail) still works — different service, different port.'},
+
+{caller:'Developer',pri:'med',msg:'Can\'t SSH into the staging server. Was working yesterday.',
+clue:'ping 192.168.1.150 → Reply OK\ntelnet 192.168.1.150 22 → Connection refused\ntelnet 192.168.1.150 80 → Connected (web OK)\ntelnet 192.168.1.150 3306 → Connected (DB OK)',answer:4,
+explain:'Layer 4 (Transport) — Server is alive, ping works, web and DB ports are open — but TCP port 22 (SSH) specifically is refusing connections. The SSH daemon (sshd) stopped or a firewall rule was added blocking port 22. Fix: restart sshd or check iptables.'},
+
+{caller:'Guest Wi-Fi user',pri:'low',msg:'Connected to guest Wi-Fi, got an IP, but can\'t open any website.',
+clue:'ipconfig: IP 192.168.50.100, Gateway 192.168.50.1\nping 192.168.50.1 → OK\nping 8.8.8.8 → OK\nping google.com → "could not find host"\nnslookup → DNS request timed out, server 192.168.50.1',answer:7,
+explain:'Layer 7 (Application/DNS) — IP works, gateway works, external IP works — but DNS fails. The guest Wi-Fi DHCP is handing out a DNS server that doesn\'t work. Fix: manually set DNS to 8.8.8.8 or 1.1.1.1.'},
+
+{caller:'Warehouse team',pri:'low',msg:'Our barcode scanners can\'t connect to the network anymore. They use Wi-Fi.',
+clue:'Scanner shows: Connected to SSID "Warehouse_5GHz"\nSignal: -82 dBm (very weak)\nSpeed: 6 Mbps (normally 300 Mbps)\nNew metal shelving was installed yesterday between AP and scanners',answer:1,
+explain:'Layer 1 (Physical) — Wi-Fi is a Layer 1 technology. -82 dBm = extremely weak signal. Metal shelving installed between the access point and scanners is blocking/reflecting the radio waves. Fix: relocate the AP or add a second AP on the other side of the shelving.'},
+
+{caller:'PC-3 user',pri:'med',msg:'I can\'t communicate with any other PC. I just configured my IP manually.',
+clue:'PC-3: 192.168.2.20 / 255.255.255.0\nPC-1: 192.168.1.10 / 255.255.255.0\nPC-2: 192.168.1.11 / 255.255.255.0\nAll connected to the same switch',answer:3,
+explain:'Layer 3 (Network) — PC-3 is on subnet 192.168.2.0/24 while everyone else is on 192.168.1.0/24. Different subnets can\'t communicate directly even on the same switch. Fix: change PC-3\'s IP to 192.168.1.x.'},
+
+{caller:'Video conference room',pri:'high',msg:'Video calls keep freezing and audio cuts out, but web browsing works fine.',
+clue:'Bandwidth test: 2 Mbps (should be 100 Mbps)\nSwitch port config: speed auto, duplex HALF\nOther ports: speed 1000, duplex FULL\nPort was recently reconfigured by a junior admin',answer:2,
+explain:'Layer 2 (Data Link) — The switch port is set to HALF duplex instead of FULL duplex. Half duplex means the port can only send OR receive at one time, not both simultaneously — causing massive performance loss for real-time traffic like video. Fix: set port to full duplex.'},
+
+{caller:'Finance building',pri:'high',msg:'Building 2 lost all connectivity to Building 1. We can\'t access any servers.',
+clue:'Building 1 ↔ Building 2 connected by fiber optic cable\nBuilding 2 switch uplink port: link light OFF\nFacilities report: construction crew was digging outside today\nBuilding 2 internal network works fine between local PCs',answer:1,
+explain:'Layer 1 (Physical) — The fiber optic cable between buildings was likely cut by the construction crew. Link light OFF on the uplink = no physical signal. Internal network works because the local switch is fine. Fix: locate the cable break, repair or replace the fiber run.'},
+
+{caller:'Security team',pri:'high',msg:'We\'re seeing hundreds of failed login attempts on the VPN portal from one IP address.',
+clue:'VPN logs: 847 failed login attempts in 10 minutes from 185.220.101.47\nAll attempts use different usernames from a leaked database\nIP 185.220.101.47 geolocates to a known Tor exit node',answer:7,
+explain:'Layer 7 (Application) — This is a credential stuffing / brute force attack at the application layer. The network is functioning correctly — the ATTACK is against the authentication service. Fix: block the IP at the firewall, enable rate limiting, enforce MFA.'},
+];
+
+let score=0,streak=0,best=0,answered=0,incidents=[];
+
+function start(){incidents=shuffle([...I]);incidents.forEach(q=>delete q._answer);score=0;streak=0;best=0;answered=0;render();}
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+
+function ans(idx,layer){
+  const inc=incidents[idx];if(inc._answer!==undefined)return;
+  inc._answer=layer;answered++;
+  if(layer===inc.answer){score+=100+(streak*25);streak++;if(streak>best)best=streak;}else streak=0;
+  document.getElementById('score').textContent=score;
+  document.getElementById('streak').textContent=streak;
+  document.getElementById('prog').textContent=answered+'/'+incidents.length;
+  render();
+}
+
+function render(){
+  const g=document.getElementById('game');
+  g.innerHTML=incidents.map((inc,i)=>{
+    const done=inc._answer!==undefined;const ok=done&&inc._answer===inc.answer;
+    return`<div class="call-card${done?' answered':''}">
+    <div class="cc-hdr"><span class="cc-num">#${i+1}</span><span class="cc-caller">${done?'':'📞 '}${inc.caller}</span><span class="cc-priority pri-${inc.pri}">${inc.pri.toUpperCase()}</span></div>
+    <div class="cc-msg">${inc.msg}</div>
+    <div class="cc-clue">${inc.clue.replace(/\n/g,'<br>')}</div>
+    <div class="cc-q">Which OSI layer is the problem?</div>
+    <div class="cc-layers">${[[1,'Physical'],[2,'Data Link'],[3,'Network'],[4,'Transport'],[7,'Application']].map(([n,name])=>{
+      let cls='cc-l';if(done){cls+=' locked';if(n===inc.answer)cls+=' correct';else if(n===inc._answer)cls+=' wrong';}
+      return`<div class="${cls}" onclick="ans(${i},${n})">L${n}<br><span style="font-size:9px">${name}</span></div>`;
+    }).join('')}</div>
+    ${done?`<div class="cc-result on ${ok?'ok':'no'}">${ok?'✓ ':'✗ '}${inc.explain}</div>`:''}
+    </div>`;}).join('')+
+    `<div class="end-bar${answered>=incidents.length?' on':''}"><h2>All calls handled!</h2>
+    <div class="end-stats">
+    <div class="es"><div class="es-v" style="color:#4ade80">${score}</div><div class="es-k">Score</div></div>
+    <div class="es"><div class="es-v" style="color:#fbbf24">${best}</div><div class="es-k">Best streak</div></div>
+    <div class="es"><div class="es-v" style="color:#60a5fa">${incidents.length?Math.round(incidents.filter(q=>q._answer===q.answer).length/incidents.length*100):0}%</div><div class="es-k">Accuracy</div></div></div>
+    <button class="restart" onclick="start()">New shift →</button></div>`;
+}
+start();
+</script>
+</body></html>

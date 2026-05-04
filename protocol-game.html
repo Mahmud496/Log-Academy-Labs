@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>What Protocol Am I?</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;700&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{height:100vh;background:#0a0a14;font-family:'Outfit',sans-serif;color:#e0e0e0;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden}
+.hud{position:fixed;top:0;left:0;right:0;height:50px;background:#12121e;border-bottom:2px solid #2a2a3e;display:flex;align-items:center;justify-content:center;gap:32px}
+.hud-stat{font-family:'IBM Plex Mono';font-size:14px}.hud-stat .v{font-weight:700;font-size:18px}
+.s-score .v{color:#4ade80}.s-wrong .v{color:#ff6b6b}.s-streak .v{color:#fbbf24}
+.game{text-align:center;max-width:600px;width:100%;padding:20px}
+.clue-card{background:#1e1e2e;border:2px solid #3a3a5e;border-radius:16px;padding:24px;margin-bottom:20px;min-height:180px;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.clue-num{font-family:'IBM Plex Mono';font-size:10px;color:#555;margin-bottom:8px}
+.clue{font-size:18px;font-weight:600;line-height:1.6;margin-bottom:4px;color:#e0e0f0}
+.clue-detail{font-size:13px;color:#888;line-height:1.5;margin-top:8px}
+.opts{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.opt{padding:14px;border-radius:10px;border:2px solid #2a2a3e;cursor:pointer;font-size:15px;font-weight:700;transition:all .12s;background:#12121e}
+.opt:hover:not(.locked){border-color:#818cf8;background:rgba(129,140,248,.06);transform:translateY(-2px)}
+.opt.correct{border-color:#4ade80;background:rgba(74,222,128,.1);color:#4ade80}
+.opt.wrong{border-color:#ff6b6b;background:rgba(255,107,107,.1);color:#ff6b6b}
+.opt.locked{cursor:default;opacity:.4}
+.explain{margin-top:12px;font-size:12px;color:#888;min-height:20px;line-height:1.6}
+.screen h1{font-size:42px;font-weight:900;color:#818cf8;margin-bottom:8px}
+.screen p{font-size:14px;color:#888;max-width:400px;margin:0 auto 20px;line-height:1.7}
+.big-btn{padding:14px 40px;border-radius:99px;border:2px solid #818cf8;background:transparent;color:#818cf8;font-size:18px;font-weight:800;cursor:pointer;font-family:'Outfit'}
+</style>
+</head>
+<body>
+<div class="hud">
+<div class="hud-stat s-score">✓ <span class="v" id="h-ok">0</span></div>
+<div class="hud-stat s-wrong">✗ <span class="v" id="h-no">0</span></div>
+<div class="hud-stat s-streak">🔥 <span class="v" id="h-str">0</span></div>
+</div>
+<div class="game" id="game"></div>
+<script>
+const QS=[
+{clues:['I am connection-oriented','I use a 3-way handshake before sending data','I guarantee delivery and order','I retransmit lost packets'],answer:'TCP',opts:['TCP','UDP','ICMP','ARP'],exp:'TCP is connection-oriented, uses SYN/SYN-ACK/ACK handshake, guarantees delivery.'},
+{clues:['I am connectionless — fire and forget','I am faster because I skip the handshake','I do NOT guarantee delivery','Video streaming and gaming use me'],answer:'UDP',opts:['TCP','UDP','DNS','FTP'],exp:'UDP = fast, no handshake, no guarantees. Used for streaming, gaming, DNS.'},
+{clues:['I translate domain names to IP addresses','I usually use port 53','Without me, you would have to memorize IP addresses','I am the phonebook of the internet'],answer:'DNS',opts:['DHCP','DNS','ARP','SMTP'],exp:'DNS resolves names to IPs. Port 53. Without DNS, no browsing by domain name.'},
+{clues:['I automatically assign IP addresses to new devices','My process is called DORA','I use UDP ports 67 and 68','Without me, every IP must be configured manually'],answer:'DHCP',opts:['DNS','DHCP','ARP','TCP'],exp:'DHCP: Discover-Offer-Request-Acknowledge. Assigns IPs automatically.'},
+{clues:['I map IP addresses to MAC addresses','I work at Layer 2','I use broadcast to ask "who has this IP?"','Attackers can spoof me for man-in-the-middle attacks'],answer:'ARP',opts:['DNS','ICMP','ARP','DHCP'],exp:'ARP maps IP→MAC on the local network. ARP spoofing = Layer 2 attack.'},
+{clues:['I am used for sending emails','I operate on port 25','I transfer mail between servers','My name includes "Simple" and "Mail"'],answer:'SMTP',opts:['POP3','IMAP','SMTP','HTTP'],exp:'SMTP = Simple Mail Transfer Protocol. Port 25. Sends email between servers.'},
+{clues:['I am used for secure web browsing','I operate on port 443','I use TLS encryption','The padlock icon in your browser means me'],answer:'HTTPS',opts:['HTTP','HTTPS','FTP','SSH'],exp:'HTTPS = HTTP + TLS encryption. Port 443. The padlock = encrypted connection.'},
+{clues:['I ping other computers to test connectivity','I am part of the Network layer','I send echo requests and receive echo replies','tracert uses me to trace routes'],answer:'ICMP',opts:['TCP','ICMP','ARP','UDP'],exp:'ICMP = Internet Control Message Protocol. Used by ping and tracert.'},
+{clues:['I provide secure remote access to servers','I operate on port 22','I replaced the insecure Telnet protocol','I encrypt the entire terminal session'],answer:'SSH',opts:['SSH','RDP','Telnet','FTP'],exp:'SSH = Secure Shell. Port 22. Encrypted remote access. Replaced Telnet (port 23).'},
+{clues:['I transfer files between computers','I use TWO ports: 20 for data, 21 for control','I send credentials in plain text (insecure!)','SFTP is my secure replacement'],answer:'FTP',opts:['HTTP','SSH','SFTP','FTP'],exp:'FTP = File Transfer Protocol. Ports 20/21. Insecure — use SFTP instead.'},
+{clues:['I provide Windows Remote Desktop access','I operate on port 3389','Attackers frequently target me for unauthorized access','I should be restricted to specific admin IPs'],answer:'RDP',opts:['SSH','RDP','VNC','Telnet'],exp:'RDP = Remote Desktop Protocol. Port 3389. Major attack target — always restrict access.'},
+{clues:['I am used for Windows file sharing','I operate on port 445','Ransomware like WannaCry spreads through me','I am a Layer 5 (Session) protocol'],answer:'SMB',opts:['FTP','NFS','SMB','CIFS'],exp:'SMB = Server Message Block. Port 445. Ransomware spreads via SMB across networks.'},
+{clues:['I am the unsecured version of web browsing','I operate on port 80','Data travels in plain text — anyone can read it','My secure version adds TLS encryption'],answer:'HTTP',opts:['HTTP','HTTPS','HTML','FTP'],exp:'HTTP = HyperText Transfer Protocol. Port 80. Unencrypted — never enter passwords on HTTP.'},
+{clues:['I retrieve email from a mail server','I operate on port 143 (or 993 with encryption)','I let you manage email on the server without downloading','I am more modern than POP3'],answer:'IMAP',opts:['SMTP','POP3','IMAP','HTTP'],exp:'IMAP = Internet Message Access Protocol. Port 143/993. Manages email on server.'},
+];
+
+let qi=0,ok=0,no=0,streak=0,shuffled=[];
+
+function start(){qi=0;ok=0;no=0;streak=0;shuffled=[...QS].sort(()=>Math.random()-.5);render();}
+
+function render(){
+  if(qi>=shuffled.length){
+    document.getElementById('game').innerHTML=`<div class="screen"><h1>${ok}/${shuffled.length}</h1><p>protocols identified correctly!<br>Best streak: ${streak}</p><button class="big-btn" onclick="start()">Play again →</button></div>`;return;
+  }
+  const q=shuffled[qi];
+  document.getElementById('h-ok').textContent=ok;
+  document.getElementById('h-no').textContent=no;
+  document.getElementById('h-str').textContent=streak;
+  document.getElementById('game').innerHTML=`
+<div class="clue-card">
+<div class="clue-num">${qi+1}/${shuffled.length}</div>
+${q.clues.map(c=>`<div class="clue">• ${c}</div>`).join('')}
+</div>
+<div class="opts">${q.opts.sort(()=>Math.random()-.5).map(o=>`<div class="opt" onclick="answer(this,'${o}','${q.answer}')">${o}</div>`).join('')}</div>
+<div class="explain" id="exp"></div>`;
+}
+
+function answer(el,pick,correct){
+  if(el.classList.contains('locked'))return;
+  document.querySelectorAll('.opt').forEach(o=>{o.classList.add('locked');if(o.textContent===correct)o.classList.add('correct');});
+  if(pick===correct){ok++;streak++;el.classList.add('correct');}
+  else{no++;streak=0;el.classList.add('wrong');}
+  document.getElementById('exp').textContent=shuffled[qi].exp;
+  qi++;
+  setTimeout(render,pick===correct?1000:2500);
+}
+
+document.getElementById('game').innerHTML=`<div class="screen"><h1 style="color:#818cf8">What Protocol Am I?</h1><p>Read the clues. Pick the correct protocol. 14 rounds.</p><button class="big-btn" onclick="start()">Start →</button></div>`;
+</script>
+</body></html>

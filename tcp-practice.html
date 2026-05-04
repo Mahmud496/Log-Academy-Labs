@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>TCP Handshake Practice</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Serif+Display&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;background:#FAFAF7;font-family:'DM Sans',sans-serif;color:#2D2A26}
+header{background:#fff;border-bottom:2px solid #E0DDD6;padding:0 24px;height:52px;display:flex;align-items:center}
+header h1{font-family:'DM Serif Display',serif;font-size:20px}header h1 span{color:#0EA5E9}
+.hdr-r{margin-left:auto;font-family:'IBM Plex Mono';font-size:12px;color:#8A857D}
+.container{max-width:700px;margin:0 auto;padding:24px}
+.title{font-family:'DM Serif Display',serif;font-size:24px;text-align:center;margin-bottom:4px}
+.sub{font-size:13px;color:#8A857D;text-align:center;margin-bottom:20px;line-height:1.6}
+.scenario{background:#EFF6FF;border:1px solid #BFDBFE;border-radius:12px;padding:14px;margin-bottom:16px;font-size:12px;color:#1D4ED8;line-height:1.6;text-align:center;border-left:4px solid #3B82F6}
+.step-card{background:#fff;border:2px solid #E0DDD6;border-radius:14px;padding:20px;margin-bottom:12px;transition:all .2s}
+.step-card.active{border-color:#0EA5E9;box-shadow:0 2px 12px rgba(14,165,233,.1)}
+.step-card.done{opacity:.5}.step-card.locked{opacity:.15}
+.sc-hdr{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.sc-num{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-family:'DM Serif Display',serif;font-size:16px;color:#fff;flex-shrink:0}
+.sc-title{font-size:15px;font-weight:700;flex:1}
+.sc-dir{font-size:10px;color:#8A857D;font-family:'IBM Plex Mono'}
+.field-row{display:flex;gap:10px;align-items:flex-end;margin-bottom:8px;flex-wrap:wrap}
+.field{display:flex;flex-direction:column;gap:3px;flex:1;min-width:120px}
+.f-label{font-size:10px;font-weight:600;color:#8A857D}
+.f-select{padding:8px 10px;border:1.5px solid #D4CFC8;border-radius:8px;font-size:12px;outline:none;font-family:'DM Sans';cursor:pointer;background:#FAFAF7}
+.f-select:focus{border-color:#0EA5E9}
+.f-input{padding:8px 10px;border:1.5px solid #D4CFC8;border-radius:8px;font-size:12px;outline:none;font-family:'IBM Plex Mono';background:#FAFAF7}
+.f-input:focus{border-color:#0EA5E9}
+.f-select.correct,.f-input.correct{border-color:#10B981;background:#ECFDF5}
+.f-select.wrong,.f-input.wrong{border-color:#EF4444;background:#FEF2F2}
+.send-btn{padding:10px 24px;border-radius:99px;border:none;cursor:pointer;font-size:13px;font-weight:700;background:#0EA5E9;color:#fff;font-family:'DM Sans';margin-top:8px}
+.send-btn:hover{background:#0284C7}
+.send-btn:disabled{opacity:.3;cursor:not-allowed}
+.sc-result{margin-top:8px;padding:10px 14px;border-radius:8px;font-size:12px;line-height:1.6;display:none}
+.sc-result.on{display:block}
+.sc-result.ok{background:#ECFDF5;border:1px solid #A7F3D0;color:#065F46}
+.sc-result.no{background:#FEF2F2;border:1px solid #FECACA;color:#991B1B}
+.connected{text-align:center;padding:20px;background:#F0FDF4;border:2px solid #A7F3D0;border-radius:14px;display:none}
+.connected.on{display:block}
+.connected h3{font-family:'DM Serif Display',serif;font-size:22px;color:#065F46;margin-bottom:6px}
+.restart-btn{padding:10px 24px;border-radius:99px;border:2px solid #0EA5E9;background:transparent;color:#0EA5E9;cursor:pointer;font-size:13px;font-weight:700;font-family:'DM Sans';margin-top:12px}
+</style>
+</head>
+<body>
+<header><h1>TCP Handshake <span>Practice</span></h1><span class="hdr-r" id="prog">Step 1/3</span></header>
+<div class="container">
+<div class="title">Build the handshake yourself</div>
+<div class="sub">You are the client. Perform the TCP 3-way handshake by choosing the correct flags, sequence numbers, and acknowledgment numbers at each step.</div>
+<div class="scenario" id="scenario">Scenario: Connect to web server 142.250.74.46 on port 443 (HTTPS). Your initial sequence number is 1000.</div>
+<div id="steps"></div>
+<div class="connected" id="connected"><h3>Connection Established!</h3><p style="font-size:13px;color:#047857">You successfully completed the TCP 3-way handshake. Both sides have agreed on sequence numbers and are ready to exchange data.</p><button class="restart-btn" onclick="restart()">New scenario →</button></div>
+</div>
+<script>
+const SCENARIOS=[
+{desc:'Connect to web server 142.250.74.46 on port 443. Your initial Seq = 1000. Server\'s initial Seq = 5000.',clientSeq:1000,serverSeq:5000,srcPort:49152,dstPort:443,dst:'142.250.74.46'},
+{desc:'Connect to SSH server 192.168.1.10 on port 22. Your initial Seq = 3500. Server\'s initial Seq = 8000.',clientSeq:3500,serverSeq:8000,srcPort:51234,dstPort:22,dst:'192.168.1.10'},
+{desc:'Connect to mail server 192.168.1.20 on port 25 (SMTP). Your initial Seq = 200. Server\'s initial Seq = 700.',clientSeq:200,serverSeq:700,srcPort:50100,dstPort:25,dst:'192.168.1.20'},
+];
+
+let scIdx=0,stepIdx=0;
+
+function getScenario(){return SCENARIOS[scIdx%SCENARIOS.length];}
+
+function render(){
+  const sc=getScenario();
+  document.getElementById('scenario').textContent='Scenario: '+sc.desc;
+  document.getElementById('prog').textContent=stepIdx>=3?'Done!':'Step '+(stepIdx+1)+'/3';
+
+  const steps=[
+    {num:1,color:'#2563EB',title:'Client → Server: Send SYN',dir:'You → Server',
+     fields:[
+      {id:'s1-flag',label:'TCP Flag',type:'select',opts:['SYN','ACK','SYN-ACK','FIN','RST'],correct:'SYN'},
+      {id:'s1-seq',label:'Sequence Number',type:'input',correct:String(sc.clientSeq)},
+      {id:'s1-ack',label:'Acknowledgment',type:'input',correct:'0'},
+      {id:'s1-dport',label:'Dest Port',type:'input',correct:String(sc.dstPort)},
+     ],
+     explain:`Step 1: Client sends SYN with its initial sequence number (${sc.clientSeq}). Ack = 0 because we haven't received anything yet. Destination port = ${sc.dstPort}.`},
+    {num:2,color:'#16A34A',title:'Server → Client: Send SYN-ACK',dir:'Server → You',
+     fields:[
+      {id:'s2-flag',label:'TCP Flag',type:'select',opts:['SYN','ACK','SYN-ACK','FIN','RST'],correct:'SYN-ACK'},
+      {id:'s2-seq',label:'Server Seq Number',type:'input',correct:String(sc.serverSeq)},
+      {id:'s2-ack',label:'Acknowledgment (client Seq + 1)',type:'input',correct:String(sc.clientSeq+1)},
+     ],
+     explain:`Step 2: Server responds with SYN-ACK. Its own Seq = ${sc.serverSeq}. Ack = ${sc.clientSeq+1} (client's Seq + 1, meaning "I received up to ${sc.clientSeq}, send me ${sc.clientSeq+1} next").`},
+    {num:3,color:'#EA580C',title:'Client → Server: Send ACK',dir:'You → Server',
+     fields:[
+      {id:'s3-flag',label:'TCP Flag',type:'select',opts:['SYN','ACK','SYN-ACK','FIN','RST'],correct:'ACK'},
+      {id:'s3-seq',label:'Sequence Number',type:'input',correct:String(sc.clientSeq+1)},
+      {id:'s3-ack',label:'Acknowledgment (server Seq + 1)',type:'input',correct:String(sc.serverSeq+1)},
+     ],
+     explain:`Step 3: Client sends ACK. Seq = ${sc.clientSeq+1} (our next byte). Ack = ${sc.serverSeq+1} (server's Seq + 1). Connection is now ESTABLISHED!`},
+  ];
+
+  document.getElementById('steps').innerHTML=steps.map((s,i)=>{
+    const isActive=i===stepIdx;const isDone=i<stepIdx;const isLocked=i>stepIdx;
+    return`<div class="step-card ${isActive?'active':isDone?'done':'locked'}">
+    <div class="sc-hdr"><div class="sc-num" style="background:${s.color}">${s.num}</div><div class="sc-title">${s.title}</div><span class="sc-dir">${s.dir}</span></div>
+    ${isActive?`<div class="field-row">${s.fields.map(f=>`<div class="field">
+      <div class="f-label">${f.label}</div>
+      ${f.type==='select'?`<select class="f-select" id="${f.id}">${f.opts.map(o=>`<option>${o}</option>`).join('')}</select>`
+      :`<input class="f-input" id="${f.id}" placeholder="?" />`}
+    </div>`).join('')}</div>
+    <button class="send-btn" onclick="checkStep(${i})">Send packet →</button>
+    <div class="sc-result" id="res-${i}"></div>`:
+    isDone?`<div class="sc-result on ok">${s.explain}</div>`:''}
+    </div>`;
+  }).join('');
+
+  document.getElementById('connected').className='connected'+(stepIdx>=3?' on':'');
+}
+
+function checkStep(i){
+  const sc=getScenario();
+  const steps=[
+    [{id:'s1-flag',c:'SYN'},{id:'s1-seq',c:String(sc.clientSeq)},{id:'s1-ack',c:'0'},{id:'s1-dport',c:String(sc.dstPort)}],
+    [{id:'s2-flag',c:'SYN-ACK'},{id:'s2-seq',c:String(sc.serverSeq)},{id:'s2-ack',c:String(sc.clientSeq+1)}],
+    [{id:'s3-flag',c:'ACK'},{id:'s3-seq',c:String(sc.clientSeq+1)},{id:'s3-ack',c:String(sc.serverSeq+1)}],
+  ];
+  
+  let allOk=true;
+  steps[i].forEach(f=>{
+    const el=document.getElementById(f.id);
+    const val=el.value.trim();
+    if(val===f.c){el.classList.add('correct');}
+    else{el.classList.add('wrong');allOk=false;}
+  });
+  
+  const res=document.getElementById('res-'+i);
+  if(allOk){
+    res.className='sc-result on ok';res.textContent='✓ Correct! Packet sent.';
+    stepIdx++;setTimeout(render,800);
+  } else {
+    res.className='sc-result on no';
+    const expected=steps[i].map(f=>`${f.id.split('-')[1].replace('s'+steps[i][0].id[1],'').toUpperCase()}: expected "${f.c}"`).join(', ');
+    res.textContent='✗ Wrong values. Check: '+steps[i].filter(f=>document.getElementById(f.id).value.trim()!==f.c).map(f=>`${f.id.split('-').pop()} should be "${f.c}"`).join(', ');
+  }
+}
+
+function restart(){scIdx++;stepIdx=0;render();}
+render();
+</script>
+</body></html>

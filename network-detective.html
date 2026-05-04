@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Network Detective</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Serif+Display&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{height:100vh;display:flex;flex-direction:column;background:#0c0c0c;font-family:'DM Sans',sans-serif;color:#ccc;overflow:hidden}
+.topbar{height:48px;background:#1a0a0a;border-bottom:2px solid #3a1515;display:flex;align-items:center;padding:0 16px;gap:12px;flex-shrink:0}
+.topbar h1{font-family:'DM Serif Display',serif;font-size:18px;color:#ff6b6b}
+.topbar h1 span{color:#fbbf24}
+.tb-r{margin-left:auto;display:flex;gap:12px;font-family:'IBM Plex Mono';font-size:11px}
+.tb-flags{color:#fbbf24}.tb-score{color:#4ade80}
+.brief-bar{background:#1a1020;border-bottom:1px solid #2a1535;padding:8px 16px;flex-shrink:0;font-size:11px;color:#a080b0;display:flex;gap:10px;align-items:center}
+.brief-bar strong{color:#e0d0f0}
+.main{display:flex;flex:1;overflow:hidden}
+.net-panel{width:220px;background:#12121e;border-right:1px solid #2a2a4e;display:flex;flex-direction:column;flex-shrink:0;overflow:hidden}
+.np-hdr{padding:8px 12px;border-bottom:1px solid #2a2a4e;font-size:10px;font-weight:700;color:#818cf8}
+.np-body{flex:1;overflow-y:auto;padding:6px}
+.np-host{padding:8px 10px;border-radius:6px;border:1px solid #2a2a4e;margin-bottom:4px;cursor:pointer;font-size:11px;transition:all .1s}
+.np-host:hover{border-color:#818cf8;background:rgba(129,140,248,.04)}
+.np-host.sel{border-color:#818cf8;background:rgba(129,140,248,.08)}
+.np-host.flagged{border-color:#fbbf24;background:rgba(251,191,36,.06)}
+.np-name{font-weight:600;color:#e0e0f0}.np-ip{font-family:'IBM Plex Mono';font-size:9px;color:#555}.np-type{font-size:9px;color:#888}
+
+.terminal-wrap{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.terminal{flex:1;overflow-y:auto;padding:10px 14px;font-family:'IBM Plex Mono',monospace;font-size:11px;line-height:1.8;background:#0c0c0c;white-space:pre-wrap}
+.terminal .ok{color:#4ade80}.terminal .err{color:#f87171}.terminal .info{color:#60a5fa}.terminal .warn{color:#fbbf24}.terminal .head{color:#e5e510}.terminal .dim{color:#444}.terminal .flag{color:#fbbf24;font-weight:700;background:rgba(251,191,36,.1);padding:2px 6px;border-radius:3px}
+.input-line{display:flex;align-items:center;padding:4px 14px 10px;flex-shrink:0}
+.input-prompt{color:#ff6b6b;font-family:'IBM Plex Mono';font-size:11px;white-space:pre;flex-shrink:0}
+.input-field{flex:1;background:transparent;border:none;color:#e0e0e0;font-family:'IBM Plex Mono';font-size:11px;outline:none;caret-color:#ff6b6b}
+
+/* Evidence panel */
+.evidence{width:260px;background:#141420;border-left:1px solid #2a2a4e;display:flex;flex-direction:column;flex-shrink:0;overflow:hidden}
+.ev-hdr{padding:8px 12px;border-bottom:1px solid #2a2a4e;font-size:10px;font-weight:700;color:#fbbf24}
+.ev-body{flex:1;overflow-y:auto;padding:8px}
+.ev-item{padding:6px 8px;border-radius:4px;background:#1a1a2e;border:1px solid #2a2a4e;margin-bottom:4px;font-size:10px;line-height:1.5}
+.ev-item .ev-flag{color:#fbbf24;font-weight:600}
+.submit-bar{padding:8px;border-top:1px solid #2a2a4e;flex-shrink:0}
+.submit-bar select{width:100%;padding:6px 8px;border:1px solid #2a2a4e;border-radius:4px;background:#0c0c0c;color:#e0e0e0;font-size:11px;margin-bottom:4px;font-family:'DM Sans'}
+.submit-btn{width:100%;padding:8px;border-radius:6px;border:none;cursor:pointer;font-size:11px;font-weight:700;background:#fbbf24;color:#0c0c0c;font-family:'DM Sans'}
+</style>
+</head>
+<body>
+<div class="topbar"><h1>Network <span>Detective</span></h1>
+<span class="tb-r"><span class="tb-flags">🚩 Flags: <span id="flag-count">0</span>/5</span><span class="tb-score">Evidence: <span id="ev-count">0</span></span></span></div>
+<div class="brief-bar"><strong>BRIEFING:</strong> A company detected unusual activity last night. As the SOC analyst on call, investigate the network. Use commands to examine each host. Find the compromised machine, trace the attack, and collect 5 flags.</div>
+<div class="main">
+<div class="net-panel">
+<div class="np-hdr">Network Hosts</div>
+<div class="np-body" id="hosts-list"></div>
+</div>
+<div class="terminal-wrap">
+<div class="terminal" id="terminal"></div>
+<div class="input-line"><span class="input-prompt" id="prompt">analyst@SOC:~$ </span><input class="input-field" id="cmd" autofocus autocomplete="off" spellcheck="false" onkeydown="if(event.key==='Enter')exec()"/></div>
+</div>
+<div class="evidence">
+<div class="ev-hdr">Evidence Collected</div>
+<div class="ev-body" id="ev-body"><div style="color:#444;font-size:10px;text-align:center;padding:20px">Investigate hosts to find evidence.<br>Type commands in the terminal.</div></div>
+<div class="submit-bar">
+<select id="submit-answer">
+<option value="">Which host is compromised?</option>
+<option value="dc-01">DC-01 (Domain Controller)</option>
+<option value="web-01">WEB-01 (Web Server)</option>
+<option value="wkstn-01">WKSTN-01 (Workstation)</option>
+<option value="wkstn-02">WKSTN-02 (Workstation)</option>
+<option value="fw-01">FW-01 (Firewall)</option>
+</select>
+<button class="submit-btn" onclick="submitAnswer()">Submit final answer</button>
+</div>
+</div>
+</div>
+
+<script>
+const HOSTS={
+'dc-01':{name:'DC-01',type:'Domain Controller',ip:'192.168.1.10',os:'Windows Server 2022',
+  ipconfig:{ip:'192.168.1.10',mask:'255.255.255.0',gw:'192.168.1.1',dns:'127.0.0.1',mac:'00-1A-2B-3C-4D-10'},
+  ping:{'192.168.1.1':true,'8.8.8.8':true,'192.168.1.100':true,'192.168.1.50':true,'192.168.1.51':true},
+  netstat:[['TCP','192.168.1.10:53','0.0.0.0:0','LISTENING'],['TCP','192.168.1.10:88','0.0.0.0:0','LISTENING'],['TCP','192.168.1.10:389','0.0.0.0:0','LISTENING'],['TCP','192.168.1.10:445','0.0.0.0:0','LISTENING'],['TCP','192.168.1.10:3389','0.0.0.0:0','LISTENING'],['TCP','192.168.1.10:389','192.168.1.50:49200','ESTABLISHED']],
+  arp:[['192.168.1.1','aa-bb-cc-dd-ee-ff'],['192.168.1.50','4c-bb-58-1a-2f-01'],['192.168.1.51','4c-bb-58-1a-2f-02'],['192.168.1.100','de-ad-be-ef-ca-fe']],
+  users:['Administrator','j.smith','c.thomas','d.wilson','svc_backup','guest (disabled)'],
+  logs:'[Normal] Authentication: j.smith logged in at 08:15\n[Normal] Authentication: c.thomas logged in at 08:22\n[Normal] DNS: 847 queries processed\n[Normal] Replication: completed with DC-02',
+  flag:null},
+
+'web-01':{name:'WEB-01',type:'Web Server',ip:'192.168.1.100',os:'Linux Ubuntu 22.04',
+  ipconfig:{ip:'192.168.1.100',mask:'255.255.255.0',gw:'192.168.1.1',dns:'192.168.1.10',mac:'DE-AD-BE-EF-CA-FE'},
+  ping:{'192.168.1.1':true,'8.8.8.8':true,'192.168.1.10':true},
+  netstat:[['TCP','192.168.1.100:80','0.0.0.0:0','LISTENING'],['TCP','192.168.1.100:443','0.0.0.0:0','LISTENING'],['TCP','192.168.1.100:22','0.0.0.0:0','LISTENING'],['TCP','192.168.1.100:3306','0.0.0.0:0','LISTENING'],['TCP','192.168.1.100:443','10.0.0.50:52100','ESTABLISHED'],['TCP','192.168.1.100:443','10.0.0.51:52200','ESTABLISHED']],
+  arp:[['192.168.1.1','aa-bb-cc-dd-ee-ff'],['192.168.1.10','00-1a-2b-3c-4d-10']],
+  logs:'[Normal] Apache: 2,847 requests today\n[Normal] SSH: login from 192.168.1.10 (admin)\n[Warning] MySQL: port 3306 accessible from all IPs\n[Normal] SSL cert: valid until 2026-03-15',
+  flag:'FLAG{mysql_3306_exposed}',flagHint:'Port 3306 open — MySQL is accessible from the entire network. Should be restricted to localhost only.'},
+
+'wkstn-01':{name:'WKSTN-01',type:'Workstation (j.smith)',ip:'192.168.1.50',os:'Windows 10 Pro',
+  ipconfig:{ip:'192.168.1.50',mask:'255.255.255.0',gw:'192.168.1.1',dns:'192.168.1.10',mac:'4C-BB-58-1A-2F-01'},
+  ping:{'192.168.1.1':true,'8.8.8.8':true,'192.168.1.10':true,'192.168.1.100':true},
+  netstat:[['TCP','192.168.1.50:49152','142.250.74.46:443','ESTABLISHED'],['TCP','192.168.1.50:49200','192.168.1.10:389','ESTABLISHED'],['TCP','0.0.0.0:445','0.0.0.0:0','LISTENING'],['TCP','0.0.0.0:135','0.0.0.0:0','LISTENING']],
+  arp:[['192.168.1.1','aa-bb-cc-dd-ee-ff'],['192.168.1.10','00-1a-2b-3c-4d-10']],
+  logs:'[Normal] Login: j.smith at 08:15\n[Normal] Browser: Chrome sessions active\n[Normal] No unusual processes',
+  flag:null},
+
+'wkstn-02':{name:'WKSTN-02',type:'Workstation (c.thomas)',ip:'192.168.1.51',os:'Windows 10 Pro',
+  ipconfig:{ip:'192.168.1.51',mask:'255.255.255.0',gw:'192.168.1.1',dns:'192.168.1.10',mac:'4C-BB-58-1A-2F-02'},
+  ping:{'192.168.1.1':true,'8.8.8.8':true,'192.168.1.10':true},
+  netstat:[['TCP','192.168.1.51:49152','142.250.74.46:443','ESTABLISHED'],['TCP','192.168.1.51:49170','91.134.188.45:4444','ESTABLISHED'],['TCP','192.168.1.51:49171','91.134.188.45:8080','ESTABLISHED'],['UDP','192.168.1.51:55555','91.134.188.45:53',''],['TCP','0.0.0.0:445','0.0.0.0:0','LISTENING'],['TCP','192.168.1.51:49180','192.168.1.10:445','ESTABLISHED'],['TCP','192.168.1.51:49181','192.168.1.100:3306','ESTABLISHED']],
+  arp:[['192.168.1.1','aa-bb-cc-dd-ee-ff'],['192.168.1.10','00-1a-2b-3c-4d-10'],['192.168.1.100','de-ad-be-ef-ca-fe']],
+  logs:'[ALERT] Process: svchost_update.exe running (NOT a real Windows process)\n[ALERT] Network: 2.1 GB sent outbound last night at 02:47 AM\n[ALERT] Connection to 91.134.188.45:4444 active since 01:30 AM\n[Warning] SMB: accessing \\\\DC-01\\SYSVOL at 02:15 AM\n[Warning] MySQL: connected to WEB-01:3306 at 02:30 AM',
+  flag:'FLAG{c2_reverse_shell_4444}',flagHint:'Active C2 connection to 91.134.188.45 on port 4444 (Metasploit). This machine is compromised.',
+  flag2:'FLAG{data_exfiltration_2gb}',flag2Hint:'2.1 GB sent outbound at 2:47 AM — data exfiltration.',
+  flag3:'FLAG{lateral_movement_smb}',flag3Hint:'SMB connection to DC-01 and MySQL to WEB-01 at 2 AM — attacker moved laterally to other servers.',
+  compromised:true},
+
+'fw-01':{name:'FW-01',type:'Firewall/Router',ip:'192.168.1.1',os:'pfSense 2.7',
+  ipconfig:{ip:'192.168.1.1',mask:'255.255.255.0',gw:'10.0.0.1',dns:'8.8.8.8',mac:'AA-BB-CC-DD-EE-FF'},
+  ping:{'10.0.0.1':true,'8.8.8.8':true},
+  netstat:[['TCP','192.168.1.1:443','0.0.0.0:0','LISTENING'],['TCP','192.168.1.1:22','0.0.0.0:0','LISTENING']],
+  arp:[['192.168.1.10','00-1a-2b-3c-4d-10'],['192.168.1.50','4c-bb-58-1a-2f-01'],['192.168.1.51','4c-bb-58-1a-2f-02'],['192.168.1.100','de-ad-be-ef-ca-fe']],
+  logs:'[Normal] Firewall: 12,847 packets processed\n[Warning] Rule: Outbound to 91.134.188.45 ALLOWED (no block rule exists)\n[Normal] NAT: active translations: 47',
+  flag:'FLAG{no_egress_filtering}',flagHint:'The firewall allowed outbound traffic to the C2 server — no egress filtering rule exists for suspicious destinations.'},
+};
+
+let currentHost=null,flagsFound=new Set(),evidence=[];
+
+function renderHosts(){
+  document.getElementById('hosts-list').innerHTML=Object.entries(HOSTS).map(([id,h])=>`
+<div class="np-host${currentHost===id?' sel':''}${h.flag&&flagsFound.has(h.flag)?' flagged':''}" onclick="selectHost('${id}')">
+<div class="np-name">${h.name}</div><div class="np-ip">${h.ip}</div><div class="np-type">${h.type}</div>
+</div>`).join('');
+}
+
+function selectHost(id){
+  currentHost=id;renderHosts();
+  document.getElementById('prompt').textContent=`analyst@${HOSTS[id].name}:~$ `;
+  out(`\nConnected to ${HOSTS[id].name} (${HOSTS[id].ip}) — ${HOSTS[id].os}\nType "help" for available commands.\n`,'info');
+}
+
+function out(t,cls=''){const term=document.getElementById('terminal');const s=document.createElement('span');s.className=cls;s.textContent=t+'\n';term.appendChild(s);term.scrollTop=term.scrollHeight;}
+
+function addEvidence(text,isFlag){
+  evidence.push(text);
+  const body=document.getElementById('ev-body');
+  body.innerHTML+=`<div class="ev-item">${isFlag?'<span class="ev-flag">🚩 FLAG</span> ':''}<span>${text}</span></div>`;
+  document.getElementById('ev-count').textContent=evidence.length;
+  body.scrollTop=body.scrollHeight;
+}
+
+function checkFlag(host){
+  const h=HOSTS[host];
+  if(h.flag&&!flagsFound.has(h.flag)){
+    flagsFound.add(h.flag);
+    out(`\n🚩 FLAG FOUND: ${h.flag}`,'flag');
+    out(`   ${h.flagHint}\n`,'warn');
+    addEvidence(`${h.name}: ${h.flag} — ${h.flagHint}`,true);
+  }
+  if(h.flag2&&!flagsFound.has(h.flag2)){
+    flagsFound.add(h.flag2);
+    out(`🚩 FLAG FOUND: ${h.flag2}`,'flag');
+    out(`   ${h.flag2Hint}\n`,'warn');
+    addEvidence(`${h.name}: ${h.flag2} — ${h.flag2Hint}`,true);
+  }
+  if(h.flag3&&!flagsFound.has(h.flag3)){
+    flagsFound.add(h.flag3);
+    out(`🚩 FLAG FOUND: ${h.flag3}`,'flag');
+    out(`   ${h.flag3Hint}\n`,'warn');
+    addEvidence(`${h.name}: ${h.flag3} — ${h.flag3Hint}`,true);
+  }
+  document.getElementById('flag-count').textContent=flagsFound.size;
+  renderHosts();
+}
+
+function exec(){
+  const input=document.getElementById('cmd');
+  const raw=input.value.trim();input.value='';
+  if(!raw)return;
+  if(!currentHost){out('Select a host from the left panel first.','err');return;}
+  const h=HOSTS[currentHost];
+  out(`analyst@${h.name}:~$ ${raw}`,'');
+  const cmd=raw.toLowerCase().replace(/\s+/g,' ');
+
+  if(cmd==='help'){out('\nCommands: ipconfig, netstat, arp -a, ping [ip], nslookup [domain], users, logs, processes, hostname, cls\n','info');return;}
+  if(cmd==='cls'){document.getElementById('terminal').innerHTML='';return;}
+  if(cmd==='hostname'){out('\n'+h.name+'\n');return;}
+
+  if(cmd==='ipconfig'||cmd==='ifconfig'){
+    out('\nNetwork Configuration:','head');
+    out('  IP Address:  '+h.ipconfig.ip);out('  Subnet:      '+h.ipconfig.mask);
+    out('  Gateway:     '+h.ipconfig.gw);out('  DNS:         '+h.ipconfig.dns);
+    out('  MAC:         '+h.ipconfig.mac+'\n');
+    addEvidence(`${h.name}: IP=${h.ipconfig.ip}`);return;}
+
+  if(cmd==='netstat'||cmd==='netstat -an'){
+    out('\nActive Connections:','head');
+    out('  Proto  Local Address          Foreign Address        State','warn');
+    h.netstat.forEach(r=>{
+      const sus=r[2].includes('4444')||r[2].includes('8080')||r[2].includes('91.134');
+      out(`  ${r[0].padEnd(6)}${r[1].padEnd(23)}${r[2].padEnd(23)}${r[3]}`,sus?'err':'');
+    });out('');
+    if(h.compromised)checkFlag(currentHost);
+    return;}
+
+  if(cmd==='arp -a'){
+    out('\nARP Cache:','head');h.arp.forEach(r=>out(`  ${r[0].padEnd(20)}${r[1]}`));out('');return;}
+
+  if(cmd.startsWith('ping ')){
+    const target=raw.substring(5).trim();
+    const ok=h.ping&&h.ping[target];
+    if(ok===undefined){out(`\nPinging ${target}... Request timed out.\n`,'err');}
+    else if(ok){out(`\nPinging ${target}... Reply from ${target}: time=${Math.floor(Math.random()*5+1)}ms\n`,'ok');}
+    else{out(`\nPinging ${target}... Request timed out.\n`,'err');}
+    return;}
+
+  if(cmd==='users'||cmd==='net user'){
+    if(h.users){out('\nLocal Users:','head');h.users.forEach(u=>out('  '+u));out('');}
+    else out('\nCommand not available on this host.\n','dim');return;}
+
+  if(cmd==='logs'||cmd==='show logs'||cmd==='cat /var/log/syslog'){
+    out('\nRecent Logs:','head');
+    h.logs.split('\n').forEach(l=>{
+      const cls=l.includes('[ALERT]')?'err':l.includes('[Warning]')?'warn':'dim';
+      out('  '+l,cls);
+    });out('');
+    if(h.flag)checkFlag(currentHost);
+    return;}
+
+  if(cmd==='processes'||cmd==='ps'||cmd==='tasklist'){
+    if(h.compromised){
+      out('\nRunning Processes:','head');
+      out('  PID   Name                    CPU   Memory','warn');
+      out('  4     System                  0%    0.1 MB');
+      out('  892   svchost.exe             1%    24 MB');
+      out('  1204  explorer.exe            2%    85 MB');
+      out('  3847  chrome.exe              8%    340 MB');
+      out('  5102  svchost_update.exe      47%   128 MB','err');
+      out('  5288  cmd.exe                 1%    4 MB');
+      out('');
+      out('⚠ svchost_update.exe is NOT a legitimate Windows process!','err');
+      checkFlag(currentHost);
+    } else {
+      out('\nRunning Processes:','head');
+      out('  PID   Name                    CPU   Memory','warn');
+      out('  4     System                  0%    0.1 MB');
+      out('  892   svchost.exe             1%    24 MB');
+      out('  1204  explorer.exe            2%    85 MB');
+      out('  All processes appear normal.\n','ok');
+    }
+    return;}
+
+  out(`Command not found: ${raw}. Type "help" for available commands.\n`,'err');
+}
+
+function submitAnswer(){
+  const answer=document.getElementById('submit-answer').value;
+  if(!answer){out('\nSelect a host from the dropdown before submitting.\n','err');return;}
+  if(answer==='wkstn-02'){
+    out('\n✅ CORRECT! WKSTN-02 (c.thomas) is the compromised machine.\n','ok');
+    out('Attack timeline:','head');
+    out('  01:30 — Reverse shell established to 91.134.188.45:4444','err');
+    out('  02:15 — Lateral movement: accessed DC-01 via SMB (port 445)','err');
+    out('  02:30 — Data theft: connected to WEB-01 MySQL (port 3306)','err');
+    out('  02:47 — Exfiltration: 2.1 GB sent to C2 server','err');
+    out('\nThe attacker compromised c.thomas\'s workstation (likely via phishing),','info');
+    out('established a Metasploit reverse shell, moved laterally to the DC and','info');
+    out('web server, stole database contents, and exfiltrated 2.1 GB of data.\n','info');
+  } else {
+    out(`\n❌ Incorrect. ${answer} is not the compromised host. Keep investigating.\n`,'err');
+    out('Hint: check netstat on each machine. Look for unusual ports and destinations.\n','warn');
+  }
+}
+
+// Init
+renderHosts();
+out('Network Detective CTF — Investigate a compromised network','info');
+out('═══════════════════════════════════════════════════════════','dim');
+out('BRIEFING: Unusual activity detected last night. Your job:','info');
+out('  1. Select hosts from the left panel','info');
+out('  2. Run commands (netstat, logs, processes) to investigate','info');
+out('  3. Find the compromised machine','info');
+out('  4. Collect all 5 flags hidden in the evidence','info');
+out('  5. Submit your final answer\n','info');
+out('Start by clicking a host on the left, then type "netstat" or "logs"\n','dim');
+
+document.addEventListener('click',()=>document.getElementById('cmd').focus());
+document.getElementById('cmd').addEventListener('keydown',function(e){
+  if(e.key==='Tab'){e.preventDefault();const cmds=['ipconfig','netstat','arp -a','ping ','logs','processes','users','hostname','cls','help'];const v=this.value.toLowerCase();const m=cmds.find(c=>c.startsWith(v)&&c!==v);if(m)this.value=m;}
+});
+</script>
+</body></html>

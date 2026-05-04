@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Port Speed Run</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;700&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{height:100vh;background:#0a0a14;font-family:'Outfit',sans-serif;color:#e0e0e0;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden}
+.hud{position:fixed;top:0;left:0;right:0;height:50px;background:#12121e;border-bottom:2px solid #2a2a3e;display:flex;align-items:center;justify-content:center;gap:32px;z-index:10}
+.hud-stat{font-family:'IBM Plex Mono',monospace;font-size:14px;display:flex;align-items:center;gap:6px}
+.hud-stat .v{font-weight:700;font-size:18px}
+.s-time .v{color:#ff6b6b}.s-score .v{color:#4ade80}.s-streak .v{color:#fbbf24}.s-best .v{color:#818cf8}
+.timer-bar{position:fixed;top:50px;left:0;right:0;height:4px;background:#1a1a2e;z-index:10}
+.timer-fill{height:100%;background:linear-gradient(90deg,#4ade80,#fbbf24,#ff6b6b);transition:width .1s linear}
+
+.game-center{text-align:center;max-width:500px;width:100%}
+.service-name{font-size:64px;font-weight:900;margin-bottom:8px;min-height:80px;transition:all .15s}
+.service-hint{font-size:14px;color:#555;margin-bottom:24px;min-height:20px;font-family:'IBM Plex Mono'}
+.port-input{font-size:48px;font-weight:700;font-family:'IBM Plex Mono',monospace;background:transparent;border:none;border-bottom:4px solid #2a2a3e;color:#e0e0e0;text-align:center;width:200px;outline:none;caret-color:#4ade80;padding:8px}
+.port-input:focus{border-bottom-color:#4ade80}
+.port-input.correct{border-bottom-color:#4ade80;color:#4ade80;animation:pop .2s}
+.port-input.wrong{border-bottom-color:#ff6b6b;color:#ff6b6b;animation:shake .3s}
+@keyframes pop{50%{transform:scale(1.1)}}
+@keyframes shake{25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}
+.feedback{font-size:16px;margin-top:16px;min-height:24px;font-weight:700}
+.fb-ok{color:#4ade80}.fb-no{color:#ff6b6b}
+
+.screen{text-align:center}
+.screen h1{font-size:48px;font-weight:900;color:#4ade80;margin-bottom:8px}
+.screen p{font-size:14px;color:#888;max-width:400px;margin:0 auto 20px;line-height:1.7}
+.big-btn{padding:14px 40px;border-radius:99px;border:2px solid #4ade80;background:transparent;color:#4ade80;font-size:18px;font-weight:800;cursor:pointer;font-family:'Outfit'}
+.big-btn:hover{background:rgba(74,222,128,.1)}
+.leaderboard{margin-top:20px;text-align:left;display:inline-block}
+.lb-row{display:flex;gap:12px;padding:6px 0;font-family:'IBM Plex Mono';font-size:13px;border-bottom:1px solid #1a1a2e}
+.lb-rank{color:#fbbf24;width:30px}.lb-score{color:#4ade80;width:50px;font-weight:700}.lb-date{color:#555}
+</style>
+</head>
+<body>
+<div class="hud">
+<div class="hud-stat s-time">⏱ <span class="v" id="h-time">60</span></div>
+<div class="hud-stat s-score">✓ <span class="v" id="h-score">0</span></div>
+<div class="hud-stat s-streak">🔥 <span class="v" id="h-streak">0</span></div>
+<div class="hud-stat s-best">👑 <span class="v" id="h-best">0</span></div>
+</div>
+<div class="timer-bar"><div class="timer-fill" id="timer-fill" style="width:100%"></div></div>
+<div class="game-center" id="game"></div>
+
+<script>
+const SERVICES=[
+{name:'HTTP',port:'80',hint:'Unsecured web traffic',color:'#38bdf8'},
+{name:'HTTPS',port:'443',hint:'Encrypted web traffic',color:'#4ade80'},
+{name:'SSH',port:'22',hint:'Secure remote shell',color:'#a855f7'},
+{name:'FTP',port:'21',hint:'File transfer (control)',color:'#fbbf24'},
+{name:'FTP Data',port:'20',hint:'File transfer (data)',color:'#fbbf24'},
+{name:'DNS',port:'53',hint:'Domain name resolution',color:'#818cf8'},
+{name:'SMTP',port:'25',hint:'Sending email',color:'#f87171'},
+{name:'POP3',port:'110',hint:'Retrieving email (old)',color:'#f87171'},
+{name:'IMAP',port:'143',hint:'Retrieving email (modern)',color:'#f87171'},
+{name:'IMAPS',port:'993',hint:'Secure IMAP',color:'#f87171'},
+{name:'SMB',port:'445',hint:'Windows file sharing',color:'#ff6b6b'},
+{name:'RDP',port:'3389',hint:'Remote Desktop',color:'#ff6b6b'},
+{name:'MySQL',port:'3306',hint:'MySQL database',color:'#10b981'},
+{name:'Telnet',port:'23',hint:'Insecure remote access (old)',color:'#888'},
+{name:'SNMP',port:'161',hint:'Network device monitoring',color:'#888'},
+{name:'Kerberos',port:'88',hint:'Authentication protocol',color:'#a855f7'},
+{name:'LDAP',port:'389',hint:'Directory services (AD)',color:'#a855f7'},
+{name:'LDAPS',port:'636',hint:'Secure LDAP',color:'#a855f7'},
+{name:'DHCP Server',port:'67',hint:'Assigns IP addresses',color:'#fbbf24'},
+{name:'DHCP Client',port:'68',hint:'Requests IP address',color:'#fbbf24'},
+];
+
+let state='start',score=0,streak=0,bestStreak=0,timeLeft=60,timer=null,current=null,best=0;
+
+// Load best from memory
+try{best=parseInt(localStorage.getItem('portbest'))||0;}catch(e){}
+
+function shuffle(){
+  const pool=[...SERVICES].sort(()=>Math.random()-.5);
+  return pool;
+}
+
+let queue=[];
+function nextService(){
+  if(!queue.length)queue=shuffle();
+  current=queue.pop();
+  document.getElementById('game').innerHTML=`
+<div class="service-name" style="color:${current.color}">${current.name}</div>
+<div class="service-hint">${current.hint}</div>
+<input class="port-input" id="port-in" autofocus autocomplete="off" maxlength="5" onkeydown="if(event.key==='Enter')checkPort()"/>
+<div class="feedback" id="fb"></div>`;
+  document.getElementById('port-in').focus();
+}
+
+function checkPort(){
+  const inp=document.getElementById('port-in');
+  const val=inp.value.trim();
+  if(!val)return;
+  const fb=document.getElementById('fb');
+  if(val===current.port){
+    score++;streak++;if(streak>bestStreak)bestStreak=streak;
+    inp.className='port-input correct';
+    fb.innerHTML=`<span class="fb-ok">✓ Correct! ${current.name} = port ${current.port}</span>`;
+    updateHUD();
+    setTimeout(nextService,400);
+  } else {
+    streak=0;
+    inp.className='port-input wrong';
+    fb.innerHTML=`<span class="fb-no">✗ Wrong — ${current.name} = port ${current.port}</span>`;
+    updateHUD();
+    setTimeout(nextService,1200);
+  }
+}
+
+function updateHUD(){
+  document.getElementById('h-score').textContent=score;
+  document.getElementById('h-streak').textContent=streak;
+  document.getElementById('h-best').textContent=Math.max(best,score);
+}
+
+function startGame(){
+  state='playing';score=0;streak=0;bestStreak=0;timeLeft=60;queue=shuffle();
+  updateHUD();
+  document.getElementById('h-time').textContent='60';
+  document.getElementById('timer-fill').style.width='100%';
+  nextService();
+  clearInterval(timer);
+  timer=setInterval(()=>{
+    timeLeft--;
+    document.getElementById('h-time').textContent=timeLeft;
+    document.getElementById('timer-fill').style.width=(timeLeft/60*100)+'%';
+    if(timeLeft<=10)document.getElementById('h-time').style.color='#ff3333';
+    if(timeLeft<=0){clearInterval(timer);endGame();}
+  },1000);
+}
+
+function endGame(){
+  state='end';
+  if(score>best){best=score;try{localStorage.setItem('portbest',best);}catch(e){}}
+  document.getElementById('game').innerHTML=`<div class="screen">
+<h1>${score}</h1>
+<p>ports matched in 60 seconds!<br>Best streak: ${bestStreak}<br>All-time best: ${best}</p>
+<button class="big-btn" onclick="startGame()">Try again →</button>
+</div>`;
+}
+
+document.getElementById('h-best').textContent=best;
+document.getElementById('game').innerHTML=`<div class="screen">
+<h1 style="color:#4ade80">Port Speed Run</h1>
+<p>Service names flash on screen. Type the correct port number as fast as you can. You have 60 seconds. How many can you get?</p>
+<button class="big-btn" onclick="startGame()">Start →</button>
+</div>`;
+</script>
+</body></html>
