@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>LogAcademy</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;500&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;background:#fff;font-family:'Inter',sans-serif;color:#111}
+a{text-decoration:none;color:inherit}
+.page{max-width:640px;margin:0 auto;padding:60px 24px 80px}
+.logo{font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:6px;color:#999;margin-bottom:60px}
+h1{font-family:'Bebas Neue',sans-serif;font-size:72px;line-height:.85;margin-bottom:40px;letter-spacing:-1px}
+.lesson{margin-bottom:48px}
+.lesson-label{font-size:10px;font-weight:500;letter-spacing:3px;text-transform:uppercase;color:#bbb;margin-bottom:16px}
+.item{display:block;padding:14px 0;border-bottom:1px solid #eee;transition:all .15s;cursor:pointer}
+.item:hover{padding-left:12px}
+.item:hover .i-name{color:#000}
+.i-top{display:flex;align-items:baseline;gap:12px}
+.i-num{font-family:'Bebas Neue',sans-serif;font-size:14px;color:#ccc;width:24px}
+.i-name{font-size:15px;font-weight:500;color:#333;transition:color .15s;flex:1}
+.i-type{font-size:9px;font-weight:500;letter-spacing:1px;text-transform:uppercase;color:#bbb}
+.i-desc{font-size:12px;color:#bbb;margin-top:2px;padding-left:36px}
+.footer{margin-top:60px;font-size:10px;color:#ddd;letter-spacing:2px}
+</style></head><body>
+<div class="page">
+<div class="logo">LOGACADEMY</div>
+<h1>Training<br>Labs</h1>
+
+<div class="lesson">
+<div class="lesson-label">Lesson 1</div>
+<a href="cmd-simulator.html" class="item"><div class="i-top"><span class="i-num">01</span><span class="i-name">CMD Simulator</span><span class="i-type">Lab</span></div><div class="i-desc">ipconfig, ping, tracert, nslookup, netstat</div></a>
+<a href="troubleshoot-lab.html" class="item"><div class="i-top"><span class="i-num">02</span><span class="i-name">Troubleshoot Lab</span><span class="i-type">Lab</span></div><div class="i-desc">Ticket arrives — find the problem yourself</div></a>
+<a href="network-911.html" class="item"><div class="i-top"><span class="i-num">03</span><span class="i-name">Network 911</span><span class="i-type">Game</span></div><div class="i-desc">16 calls — identify the broken OSI layer</div></a>
+<a href="network-detective.html" class="item"><div class="i-top"><span class="i-num">04</span><span class="i-name">Network Detective</span><span class="i-type">CTF</span></div><div class="i-desc">Company breached — investigate 5 hosts — collect flags</div></a>
+</div>
+
+<div class="lesson">
+<div class="lesson-label">Lesson 2</div>
+<a href="port-speed.html" class="item"><div class="i-top"><span class="i-num">05</span><span class="i-name">Port Speed Run</span><span class="i-type">Game</span></div><div class="i-desc">Type port numbers — 60 seconds</div></a>
+<a href="tcp-practice.html" class="item"><div class="i-top"><span class="i-num">06</span><span class="i-name">TCP Handshake Practice</span><span class="i-type">Lab</span></div><div class="i-desc">Choose flags, sequence numbers, ack numbers</div></a>
+<a href="protocol-game.html" class="item"><div class="i-top"><span class="i-num">07</span><span class="i-name">What Protocol Am I?</span><span class="i-type">Game</span></div><div class="i-desc">4 clues — name the protocol — 14 rounds</div></a>
+<a href="trace-route-game.html" class="item"><div class="i-top"><span class="i-num">08</span><span class="i-name">Trace the Route</span><span class="i-type">Game</span></div><div class="i-desc">7 devices — wrong answer = packet dropped</div></a>
+<a href="firewall-game.html" class="item"><div class="i-top"><span class="i-num">09</span><span class="i-name">You Are the Firewall</span><span class="i-type">Game</span></div><div class="i-desc">25 packets, 5 lives, rules change every round</div></a>
+</div>
+
+<div class="lesson">
+<div class="lesson-label">Lesson 3</div>
+<a href="arp-attacks.html" class="item"><div class="i-top"><span class="i-num">10</span><span class="i-name">ARP Attacks</span><span class="i-type">Lesson</span></div><div class="i-desc">ARP spoofing, CAM overflow, poisoned tables, defenses</div></a>
+<a href="dns-attacks.html" class="item"><div class="i-top"><span class="i-num">11</span><span class="i-name">DNS Attacks</span><span class="i-type">Lesson</span></div><div class="i-desc">Cache poisoning, spoofing, tunneling, amplification</div></a>
+<a href="dhcp-attacks.html" class="item"><div class="i-top"><span class="i-num">12</span><span class="i-name">DHCP Attacks</span><span class="i-type">Lesson</span></div><div class="i-desc">Starvation, rogue DHCP, combined attack chain</div></a>
+<a href="threat-recon.html" class="item"><div class="i-top"><span class="i-num">13</span><span class="i-name">Threat Recon</span><span class="i-type">Practical</span></div><div class="i-desc">15 missions — detect attacks on your real laptop</div></a>
+<a href="network-recon.html" class="item"><div class="i-top"><span class="i-num">14</span><span class="i-name">Network Recon</span><span class="i-type">Practical</span></div><div class="i-desc">20 missions — ipconfig, ping, nslookup, tracert, arp</div></a>
+<a href="cyber-recon.html" class="item"><div class="i-top"><span class="i-num">15</span><span class="i-name">Cyber Recon</span><span class="i-type">Practical</span></div><div class="i-desc">20 missions — firewall, processes, ports, hashing, OSINT</div></a>
+<a href="network-doctor.html" class="item"><div class="i-top"><span class="i-num">16</span><span class="i-name">Network Doctor</span><span class="i-type">Game</span></div><div class="i-desc">6 broken networks — diagnose the problem</div></a>
+<a href="network-jeopardy.html" class="item"><div class="i-top"><span class="i-num">17</span><span class="i-name">Networking Jeopardy</span><span class="i-type">Game</span></div><div class="i-desc">25 questions — OSI, devices, protocols, DNS/DHCP, TCP/UDP</div></a>
+<a href="network-jeopardy-2.html" class="item"><div class="i-top"><span class="i-num">18</span><span class="i-name">Networking Jeopardy — Round 2</span><span class="i-type">Game</span></div><div class="i-desc">25 harder questions — completely different from Round 1</div></a>
+</div>
+
+<div class="footer">LOGACADEMY</div>
+</div>
+</body></html>
