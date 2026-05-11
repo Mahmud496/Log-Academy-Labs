@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Threat Recon</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;700&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;background:#060610;font-family:'Outfit',sans-serif;color:#e0e0e0}
+header{height:48px;background:#10101a;border-bottom:1px solid #1a1a2e;display:flex;align-items:center;padding:0 16px}
+header h1{font-size:16px;font-weight:900}header h1 span{color:#ff6b6b}
+.hdr-r{margin-left:auto;font-family:'IBM Plex Mono';font-size:11px;color:#888}
+.container{max-width:700px;margin:0 auto;padding:20px}
+.scoreboard{background:#10101a;border:2px solid #1a1a2e;border-radius:14px;padding:16px;text-align:center;margin-bottom:14px}
+.score-big{font-family:'IBM Plex Mono';font-size:36px;font-weight:900;color:#ff6b6b}
+.score-label{font-size:11px;color:#555;margin-top:2px}
+.progress-bar{height:6px;background:#1a1a2e;border-radius:3px;margin-top:8px;overflow:hidden}
+.progress-fill{height:100%;background:linear-gradient(90deg,#ff6b6b,#f472b6);border-radius:3px;transition:width .3s}
+.mission{background:#10101a;border:2px solid #1a1a2e;border-radius:14px;overflow:hidden;margin-bottom:10px}
+.m-hdr{padding:12px 16px;border-bottom:1px solid #1a1a2e;display:flex;align-items:center;gap:8px;cursor:pointer}
+.m-hdr:hover{background:#12121e}
+.m-num{font-family:'IBM Plex Mono';font-size:10px;font-weight:700;color:#ff6b6b;background:rgba(255,107,107,.08);padding:3px 8px;border-radius:4px}
+.m-title{font-size:13px;font-weight:800;color:#f0f0f0;flex:1}
+.m-check{font-size:16px}
+.m-body{padding:16px;display:none}.m-body.open{display:block}
+.m-task{font-size:12px;color:#888;line-height:1.8;margin-bottom:12px}
+.cmd-box{background:#050508;border:1px solid #1a1a2e;border-radius:8px;padding:12px;margin-bottom:10px}
+.cmd-label{font-size:9px;color:#555;margin-bottom:4px;text-transform:uppercase;letter-spacing:1px}
+.cmd-text{font-family:'IBM Plex Mono';font-size:13px;color:#ff6b6b;cursor:pointer;user-select:all;word-break:break-all}
+.ans-label{font-size:10px;font-weight:600;color:#888;margin-bottom:4px;margin-top:10px}
+.ans-row{display:flex;gap:6px}
+.ans-input{flex:1;padding:10px 12px;border:1.5px solid #1a1a2e;border-radius:6px;background:#050508;color:#f0f0f0;font-family:'IBM Plex Mono';font-size:12px;outline:none}
+.ans-input:focus{border-color:#ff6b6b}
+.ans-input.done{border-color:#4ade80;background:rgba(74,222,128,.02);color:#4ade80}
+.ans-btn{padding:10px 16px;border-radius:6px;border:1.5px solid #ff6b6b;background:transparent;color:#ff6b6b;font-size:11px;font-weight:700;cursor:pointer;font-family:'Outfit'}
+.m-explain{background:rgba(88,166,255,.04);border:1px solid rgba(88,166,255,.1);border-radius:6px;padding:8px;font-size:10px;color:#58a6ff;line-height:1.6;margin-top:6px;display:none}
+.m-explain.show{display:block}
+.m-hint{font-size:10px;color:#333;cursor:pointer;margin-top:8px}
+.m-hint:hover{color:#58a6ff}
+</style>
+</head>
+<body>
+<header><h1>Threat <span>Recon</span></h1><span class="hdr-r" id="hdr-status">0/15</span></header>
+<div class="container">
+<div class="scoreboard">
+<div class="score-big" id="score">0/15</div>
+<div class="score-label">Threat Investigations Completed</div>
+<div class="progress-bar"><div class="progress-fill" id="prog" style="width:0%"></div></div>
+</div>
+<div id="missions"></div>
+</div>
+<script>
+const M=[
+// ARP SPOOFING DETECTION
+{n:'01',title:'Check your ARP table — is it clean?',
+task:'Run <b>arp -a</b> and look at the results. Check: does your <b>gateway IP</b> have the SAME MAC address it had yesterday? If two different IPs show the SAME MAC address, that\'s ARP spoofing!',
+cmd:'arp -a',label:'How many unique MAC addresses do you see?',ph:'e.g., 8',
+val:v=>/^\d+$/.test(v.trim()),
+explain:'In a clean network, every IP has a UNIQUE MAC address. If you see two IPs with the SAME MAC, an attacker might be ARP spoofing — pretending to be the router to intercept your traffic. SOC analysts check ARP tables during MitM investigations.'},
+
+{n:'02',title:'Detect duplicate MACs (ARP spoofing indicator)',
+task:'Run this PowerShell command to check for duplicate MAC addresses in your ARP table. Duplicates = possible ARP spoofing.',
+cmd:'powershell -c "(arp -a | Select-String \'dynamic\' | ForEach-Object { ($_ -split \'\\s+\')[2] } | Group-Object | Where-Object { $_.Count -gt 1 }).Count"',
+label:'Number of duplicate MACs found (0 = clean)',ph:'0',
+val:v=>/^\d+$/.test(v.trim()),
+explain:'This command groups all MAC addresses in your ARP table and checks if any appear more than once. 0 duplicates = clean network. If you find duplicates, investigate which IPs share the same MAC — one of them is likely an attacker doing ARP spoofing.'},
+
+// DNS POISONING DETECTION
+{n:'03',title:'Verify DNS is giving correct answers',
+task:'Run nslookup for google.com using your DEFAULT DNS and then using Google\'s DNS (8.8.8.8). Do they return the SAME IP? If different, your DNS might be poisoned.',
+cmd:'nslookup google.com\nnslookup google.com 8.8.8.8',
+label:'Are the IPs the same or different? (same/different)',ph:'same or different',
+val:v=>/^(same|different)$/i.test(v.trim()),
+explain:'If your default DNS returns a different IP than Google\'s trusted DNS (8.8.8.8), your DNS might be poisoned or your ISP is redirecting you. In DNS poisoning, the attacker changes DNS records so google.com points to a FAKE server. Always compare results with a trusted DNS.'},
+
+{n:'04',title:'Check if DNS is returning suspicious IPs',
+task:'Look up a major bank website using nslookup. Then check if that IP belongs to the real bank using <b>who.is</b>.',
+cmd:'nslookup www.paypal.com',
+label:'What organization owns the IP? (from who.is)',ph:'e.g., PayPal or Akamai',
+val:v=>v.trim().length>=3,
+explain:'If nslookup for paypal.com returns an IP owned by a random hosting company instead of PayPal or their CDN (Akamai, Cloudflare), the DNS is compromised. Real security teams verify DNS responses against known-good IP ranges for critical services.'},
+
+// EAVESDROPPING DETECTION
+{n:'05',title:'Check if you\'re on HTTP or HTTPS right now',
+task:'Open 3 websites you use regularly in your browser. For each one, check the address bar. How many use HTTPS (lock icon) vs HTTP (no lock)?',
+cmd:'(Check browser address bar for 🔒)',
+label:'How many of the 3 use HTTPS?',ph:'0, 1, 2, or 3',
+val:v=>/^[0-3]$/.test(v.trim()),
+explain:'Any website without HTTPS sends your data in PLAIN TEXT. An eavesdropper on the same Wi-Fi can read everything — passwords, messages, searches. In 2026, most major sites use HTTPS. If you find one that doesn\'t, avoid entering any personal information on it.'},
+
+{n:'06',title:'Check a certificate for signs of MitM',
+task:'Go to <b>google.com</b>. Click the 🔒 lock icon → "Connection is secure" → "Certificate". Check: who ISSUED the certificate? Is it a trusted CA?',
+cmd:'(Browser → 🔒 → Certificate details)',
+label:'Certificate issuer name',ph:'e.g., Google Trust Services',
+val:v=>v.trim().length>=3,
+explain:'In a MitM attack, the attacker generates a FAKE certificate. Red flags: (1) Issuer is unknown/self-signed, (2) Certificate shows warnings, (3) Issuer does not match the expected CA for that site. If you see "Certificate Error" or an unfamiliar issuer on a banking site, you might be under MitM attack. NEVER click "proceed anyway."'},
+
+// DDoS UNDERSTANDING
+{n:'07',title:'Measure your normal response time to a server',
+task:'Ping google.com 10 times. Record the AVERAGE response time. This is your baseline — normal latency.',
+cmd:'ping -n 10 google.com',
+label:'Average response time (ms)',ph:'e.g., 15',
+val:v=>/^\d+$/.test(v.trim()),
+explain:'During a DDoS attack, response times spike from 15ms to 5000ms+ or complete timeout. By knowing your BASELINE (normal response time), you can detect anomalies. SOC analysts set alerts like "if response time > 500ms for 5 minutes, trigger DDoS investigation." Your baseline is the reference point.'},
+
+{n:'08',title:'Check how many connections your machine has',
+task:'Run netstat and count TOTAL connections. Then open 10 browser tabs quickly and run it again. How many NEW connections appeared?',
+cmd:'netstat -an | find /c "TCP"',
+label:'How many new TCP connections after opening 10 tabs?',ph:'e.g., 25',
+val:v=>/^\d+$/.test(v.trim()),
+explain:'Each browser tab creates multiple TCP connections. 10 tabs might create 30-50 new connections. Now imagine a DDoS attack: instead of 10 tabs, imagine 10 MILLION fake connections hitting a server. The server runs out of memory tracking them all and crashes. This is why connection limits and rate limiting are critical defenses.'},
+
+// IP SPOOFING DETECTION
+{n:'09',title:'Check your own source IP in connections',
+task:'Run netstat and look at the "Local Address" column. Is your IP consistent across all connections?',
+cmd:'netstat -an | find "ESTABLISHED"',
+label:'Is your local IP the same in all connections? (yes/no)',ph:'yes or no',
+val:v=>/^(yes|no)$/i.test(v.trim()),
+explain:'Your legitimate connections all show the same local IP. In IP spoofing, the attacker FORGES a different source IP. Firewalls detect this using "reverse path forwarding" — if a packet claims to come from 10.0.1.50 but arrives on the external interface (where 10.x.x.x should never come from), it\'s spoofed and gets dropped.'},
+
+// PRACTICAL THREAT ANALYSIS
+{n:'10',title:'Investigate a suspicious IP from your connections',
+task:'Run netstat, pick a foreign IP you don\'t recognize. Check it on <b>abuseipdb.com</b> AND <b>virustotal.com</b>. Is it flagged as malicious?',
+cmd:'netstat -an | find "ESTABLISHED"',
+label:'Was the IP flagged? (clean/suspicious/malicious)',ph:'clean, suspicious, or malicious',
+val:v=>v.trim().length>=4,
+explain:'This is EXACTLY what SOC analysts do. Every suspicious connection gets investigated: check AbuseIPDB (has it been reported?), VirusTotal (is it linked to malware?), WHOIS (who owns it?). Most connections will be clean (Google, Microsoft, Cloudflare). But finding one malicious IP means your machine might be compromised.'},
+
+{n:'11',title:'Check DNS query history on your machine',
+task:'Run this command to see recently resolved domains cached on your machine. Any suspicious ones?',
+cmd:'ipconfig /displaydns | find "Record Name"',
+label:'How many cached DNS entries do you have?',ph:'e.g., 30',
+val:v=>/^\d+$/.test(v.trim()),
+explain:'Your DNS cache shows every domain your computer recently resolved. Malware often contacts Command & Control (C2) servers with suspicious domain names like "xk4m.update-service.tk" or random strings. Checking DNS cache is a quick way to spot compromised machines. SOC analysts export DNS logs and search for known malicious domains.'},
+
+{n:'12',title:'Check for rogue DHCP servers',
+task:'Run this command to see which DHCP server gave you your IP address. Is it your real router?',
+cmd:'ipconfig /all | find "DHCP Server"',
+label:'DHCP server IP address',ph:'e.g., 192.168.1.1',
+val:v=>/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(v.trim()),
+explain:'In a rogue DHCP attack, an attacker sets up a fake DHCP server that gives victims the attacker\'s IP as the gateway. All traffic then flows through the attacker (MitM). If your DHCP server IP is NOT your real router, investigate immediately. Defense: DHCP snooping on managed switches.'},
+
+// REAL-WORLD ATTACK CASES
+{n:'13',title:'Research the Mirai botnet attack',
+task:'Search Google for "Mirai botnet 2016 attack". Read about it and answer: what TYPE of devices did Mirai infect?',
+cmd:'(Google: Mirai botnet 2016)',
+label:'What devices were infected?',ph:'e.g., cameras, routers',
+val:v=>v.trim().length>=3,
+explain:'Mirai infected IoT devices (security cameras, routers, DVRs) using DEFAULT passwords (admin/admin, root/root). It built a botnet of 600,000+ devices and launched a 1.2 Tbps DDoS attack that took down Twitter, Netflix, Reddit, and Spotify. Lesson: CHANGE DEFAULT PASSWORDS on every device. IoT devices are the weakest link.'},
+
+{n:'14',title:'Check if your router uses default credentials',
+task:'Open your browser and go to your default gateway IP (from Mission 02 of Network Recon). Does the login page appear? Do NOT try to log in — just check if it\'s accessible.',
+cmd:'(Browser: http://[your gateway IP])',
+label:'Can you access the router login page? (yes/no)',ph:'yes or no',
+val:v=>/^(yes|no)$/i.test(v.trim()),
+explain:'If the router admin page is accessible from any device on the network with default credentials (admin/admin), an attacker on your Wi-Fi can change DNS settings (DNS poisoning), redirect traffic (MitM), or disable the firewall. Enterprise networks restrict router admin access to specific management VLANs.'},
+
+{n:'15',title:'Check your Wi-Fi encryption type',
+task:'Run this command to see what encryption your current Wi-Fi connection uses. Is it WPA2 or WPA3?',
+cmd:'netsh wlan show interfaces | find "Authentication"',
+label:'What authentication type? (WPA2-Personal, WPA3, etc.)',ph:'e.g., WPA2-Personal',
+val:v=>v.trim().length>=3,
+explain:'WEP = broken (cracked in minutes). WPA = weak. WPA2 = current standard (AES encryption). WPA3 = newest and strongest. If your Wi-Fi uses WEP or Open (no encryption), anyone nearby can eavesdrop on ALL traffic. WPA2 with a strong password is the minimum acceptable security. WPA3 adds protection against offline password cracking.'},
+];
+
+let completed=new Set();
+function render(){
+  document.getElementById('score').textContent=completed.size+'/'+M.length;
+  document.getElementById('prog').style.width=(completed.size/M.length*100)+'%';
+  document.getElementById('hdr-status').textContent=completed.size+'/'+M.length;
+  document.getElementById('missions').innerHTML=M.map((m,i)=>{
+    const done=completed.has(i);
+    return`<div class="mission"><div class="m-hdr" onclick="document.getElementById('mb-${i}').classList.toggle('open')">
+    <span class="m-num">${m.n}</span><span class="m-title">${m.title}</span><span class="m-check">${done?'✅':'⬜'}</span></div>
+    <div class="m-body${i===0&&!done?' open':''}" id="mb-${i}">
+    <div class="m-task">${m.task}</div>
+    <div class="cmd-box"><div class="cmd-label">Command</div><div class="cmd-text" onclick="navigator.clipboard.writeText(this.textContent)">${m.cmd}</div></div>
+    <div class="ans-label">${m.label}</div>
+    <div class="ans-row"><input class="ans-input${done?' done':''}" id="ans-${i}" placeholder="${m.ph}" ${done?'disabled value="✓"':''}/>${done?'':`<button class="ans-btn" onclick="submit(${i})">Submit</button>`}</div>
+    <div class="m-hint" onclick="document.getElementById('exp-${i}').classList.toggle('show')">${done?'📖 What this means':'💡 Why this matters'}</div>
+    <div class="m-explain${done?' show':''}" id="exp-${i}">${m.explain}</div>
+    </div></div>`;
+  }).join('');
+}
+function submit(i){const v=document.getElementById('ans-'+i).value;if(M[i].val(v)){completed.add(i);render();}else{const el=document.getElementById('ans-'+i);el.style.borderColor='#ff6b6b';setTimeout(()=>el.style.borderColor='#1a1a2e',1000);}}
+render();
+</script>
+</body></html>

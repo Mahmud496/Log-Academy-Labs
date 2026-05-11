@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Network Doctor</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;700&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{height:100vh;background:#060610;font-family:'Outfit',sans-serif;color:#e0e0e0;display:flex;flex-direction:column;overflow:hidden}
+.hud{height:44px;background:#10101a;border-bottom:1px solid #1a1a2e;display:flex;align-items:center;padding:0 14px;gap:12px;flex-shrink:0}
+.hud-title{font-size:15px;font-weight:900}.hud-title span{color:#4ade80}
+.hud-stat{font-family:'IBM Plex Mono';font-size:11px;color:#555}
+.h-case .v{color:#fbbf24;font-weight:700}
+
+.game{flex:1;display:flex;overflow:hidden}
+
+/* Network map */
+.netmap{flex:1;position:relative;background:#0a0a14;overflow:hidden}
+.device{position:absolute;width:80px;text-align:center;cursor:pointer;transition:transform .12s}
+.device:hover{transform:scale(1.1)}
+.dev-icon{font-size:32px;margin-bottom:2px}
+.dev-name{font-size:9px;font-weight:700;color:#888}
+.dev-ip{font-family:'IBM Plex Mono';font-size:8px;color:#333}
+.dev-status{width:8px;height:8px;border-radius:50%;margin:3px auto 0}
+.ds-ok{background:#4ade80;box-shadow:0 0 6px rgba(74,222,128,.4)}.ds-err{background:#ff6b6b;box-shadow:0 0 6px rgba(255,107,107,.4)}.ds-warn{background:#fbbf24}.ds-unknown{background:#555}
+
+.link{position:absolute;pointer-events:none}
+
+/* Right panel */
+.panel{width:320px;background:#10101a;border-left:1px solid #1a1a2e;display:flex;flex-direction:column;flex-shrink:0}
+.panel-section{border-bottom:1px solid #1a1a2e;padding:10px 12px}
+.ps-title{font-size:10px;font-weight:700;color:#888;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px}
+
+/* Ticket */
+.ticket{background:#0a0a14;border:1px solid #1a1a2e;border-radius:6px;padding:10px;font-size:11px;line-height:1.6}
+.ticket-title{font-weight:700;color:#ff6b6b;margin-bottom:4px}
+.ticket-body{color:#888}
+
+/* Tools */
+.tools{display:flex;gap:4px;flex-wrap:wrap}
+.tool-btn{padding:5px 10px;border-radius:4px;border:1px solid #2a2a3e;background:#0a0a14;color:#888;font-size:10px;font-weight:600;cursor:pointer;font-family:'IBM Plex Mono'}
+.tool-btn:hover{border-color:#4ade80;color:#4ade80}
+.tool-btn.active{border-color:#4ade80;color:#4ade80;background:rgba(74,222,128,.04)}
+
+/* Terminal */
+.terminal{flex:1;overflow-y:auto;padding:8px;background:#050508;font-family:'IBM Plex Mono';font-size:10px;line-height:1.7;color:#888}
+.term-cmd{color:#4ade80}.term-err{color:#ff6b6b}.term-ok{color:#4ade80}.term-info{color:#555}
+
+/* Diagnosis */
+.diag{padding:8px 12px;border-top:1px solid #1a1a2e;flex-shrink:0}
+.diag-label{font-size:9px;color:#555;margin-bottom:4px}
+.diag-opts{display:flex;flex-direction:column;gap:3px}
+.diag-opt{padding:6px 10px;border-radius:4px;border:1px solid #2a2a3e;background:#0a0a14;cursor:pointer;font-size:10px;color:#888;transition:all .12s}
+.diag-opt:hover{border-color:#fbbf24;color:#fbbf24}
+.diag-opt.correct{border-color:#4ade80;color:#4ade80;background:rgba(74,222,128,.04)}
+.diag-opt.wrong{border-color:#ff6b6b;color:#ff6b6b;background:rgba(255,107,107,.04)}
+
+.overlay{position:fixed;inset:0;background:rgba(6,6,16,.93);display:flex;align-items:center;justify-content:center;z-index:100}
+.overlay-box{text-align:center;max-width:460px;padding:30px}
+.overlay-box h2{font-size:26px;font-weight:900;margin-bottom:6px}
+.overlay-box h2 span{color:#4ade80}
+.overlay-box p{color:#888;font-size:12px;line-height:1.7;margin-bottom:14px}
+.big-btn{padding:12px 36px;border-radius:99px;border:2px solid #4ade80;background:transparent;color:#4ade80;font-size:15px;font-weight:800;cursor:pointer;font-family:'Outfit'}
+</style>
+</head>
+<body>
+<div class="hud">
+<div class="hud-title">Network <span>Doctor</span></div>
+<div class="hud-stat h-case">Case: <span class="v" id="h-case">1/6</span></div>
+</div>
+<div class="game">
+<div class="netmap" id="netmap"></div>
+<div class="panel">
+<div class="panel-section">
+<div class="ps-title">🎫 Trouble Ticket</div>
+<div class="ticket" id="ticket"></div>
+</div>
+<div class="panel-section">
+<div class="ps-title">🔧 Tools — click a tool, then click a device</div>
+<div class="tools" id="tools"></div>
+</div>
+<div class="terminal" id="terminal"><span class="term-info">Select a tool and click a device to run diagnostics...</span></div>
+<div class="diag" id="diag">
+<div class="diag-label">DIAGNOSIS — What is the problem?</div>
+<div class="diag-opts" id="diag-opts"></div>
+</div>
+</div>
+</div>
+<div class="overlay" id="overlay">
+<div class="overlay-box">
+<h2>Network <span>Doctor</span></h2>
+<p>Users are complaining about network problems. You are the network engineer. Click on devices to run diagnostic tools (ping, nslookup, traceroute, ipconfig), read the output, and figure out what is broken.</p>
+<p style="color:#555">6 cases. Each one has a different broken component. Find the problem!</p>
+<button class="big-btn" onclick="startGame()">Start diagnosing →</button>
+</div></div>
+<script>
+const TOOLS=[
+{id:'ping',name:'ping',icon:'📡'},
+{id:'nslookup',name:'nslookup',icon:'🔍'},
+{id:'traceroute',name:'traceroute',icon:'🗺️'},
+{id:'ipconfig',name:'ipconfig',icon:'⚙️'},
+{id:'arp',name:'arp -a',icon:'📋'},
+];
+
+const CASES=[
+{title:'Users cannot access any website',ticket:'Multiple users report: "Internet is down. Cannot open Google, YouTube, or any website. Started 10 minutes ago."',
+devices:[
+{id:'pc1',icon:'💻',name:'User PC',ip:'192.168.1.50',x:10,y:30,status:'err'},
+{id:'switch',icon:'🔀',name:'Switch',ip:'192.168.1.2',x:30,y:50,status:'ok'},
+{id:'router',icon:'📡',name:'Router',ip:'192.168.1.1',x:55,y:50,status:'ok'},
+{id:'dns',icon:'🔍',name:'DNS Server',ip:'192.168.1.10',x:30,y:20,status:'err'},
+{id:'isp',icon:'🌐',name:'ISP/Internet',ip:'8.8.8.8',x:80,y:50,status:'ok'},
+],
+commands:{
+'ping-pc1':'Pinging 127.0.0.1: Reply from 127.0.0.1: time<1ms\n✓ Local network stack is OK',
+'ping-switch':'Pinging 192.168.1.2: Reply from 192.168.1.2: time=1ms\n✓ Switch is reachable',
+'ping-router':'Pinging 192.168.1.1: Reply from 192.168.1.1: time=1ms\n✓ Router is reachable',
+'ping-dns':'Pinging 192.168.1.10: Request timed out.\nRequest timed out.\n✗ DNS Server is NOT reachable!',
+'ping-isp':'Pinging 8.8.8.8: Reply from 8.8.8.8: time=12ms\n✓ Internet connectivity is OK!',
+'nslookup-pc1':'Default Server: 192.168.1.10\n\nERROR: DNS request timed out.\n✗ Cannot resolve any domain names!',
+'nslookup-dns':'Server: 192.168.1.10\nStatus: OFFLINE — server not responding',
+'ipconfig-pc1':'IPv4 Address: 192.168.1.50\nSubnet Mask: 255.255.255.0\nDefault Gateway: 192.168.1.1\nDNS Server: 192.168.1.10\n✓ IP configuration looks correct',
+'traceroute-isp':'1  192.168.1.1  1ms  (Router)\n2  10.0.0.1  5ms  (ISP)\n3  8.8.8.8  12ms  (Google DNS)\n✓ Route to internet is fine!',
+},
+options:['DNS server is down — users can ping IPs but cannot resolve domain names','Router is broken — no internet connectivity','Switch is misconfigured — users cannot reach local network','ISP is having an outage'],
+correct:0,
+explain:'The DNS server (192.168.1.10) is down. Users CAN ping external IPs (8.8.8.8 works) but CANNOT resolve domain names (nslookup fails). Fix: restart the DNS server or point clients to a backup DNS (8.8.8.8).'},
+
+{title:'One user cannot connect to anything',ticket:'A single user reports: "I cannot connect to the internet OR any internal resources. Other users around me are fine."',
+devices:[
+{id:'pc1',icon:'💻',name:'User PC',ip:'169.254.x.x',x:10,y:30,status:'err'},
+{id:'pc2',icon:'💻',name:'Other PC',ip:'192.168.1.51',x:10,y:70,status:'ok'},
+{id:'switch',icon:'🔀',name:'Switch',ip:'192.168.1.2',x:35,y:50,status:'ok'},
+{id:'dhcp',icon:'🖥️',name:'DHCP Server',ip:'192.168.1.10',x:60,y:30,status:'ok'},
+{id:'router',icon:'📡',name:'Router',ip:'192.168.1.1',x:60,y:70,status:'ok'},
+],
+commands:{
+'ipconfig-pc1':'IPv4 Address: 169.254.15.200 (APIPA!)\nSubnet Mask: 255.255.0.0\nDefault Gateway: (empty)\nDNS Server: (empty)\n✗ APIPA address! DHCP did not assign an IP!',
+'ipconfig-pc2':'IPv4 Address: 192.168.1.51\nSubnet Mask: 255.255.255.0\nDefault Gateway: 192.168.1.1\nDNS Server: 192.168.1.10\n✓ Normal configuration',
+'ping-switch':'Pinging 192.168.1.2: General failure.\n✗ Cannot reach the switch! (No valid IP to communicate)',
+'ping-dhcp':'Pinging 192.168.1.10: General failure.\n✗ Cannot reach DHCP server',
+'ping-pc2':'Pinging 192.168.1.51: General failure.\n✗ Cannot reach other PC',
+'ipconfig-dhcp':'DHCP Pool: 192.168.1.50 — 192.168.1.200\nActive leases: 148/150\nStatus: RUNNING\n✓ DHCP server is operational',
+'arp-pc1':'No ARP Entries found.\n✗ PC has not learned any MAC addresses',
+},
+options:['The user PC has an APIPA address (169.254.x.x) — DHCP lease failed. Check cable, switch port, or renew DHCP lease','DHCP server is out of IP addresses','Router is blocking the user','DNS server is offline'],
+correct:0,
+explain:'169.254.x.x is an APIPA (Automatic Private IP Addressing) address. This means the PC TRIED to get an IP from DHCP but FAILED. Possible causes: cable disconnected, switch port disabled, or NIC issue. Other users are fine, so DHCP server is working. Fix: check the cable and run "ipconfig /renew".'},
+
+{title:'Website loads slowly, sometimes times out',ticket:'Users report: "Google and YouTube work, but our internal company website is extremely slow. Sometimes it does not load at all."',
+devices:[
+{id:'pc1',icon:'💻',name:'User PC',ip:'192.168.1.50',x:10,y:50,status:'warn'},
+{id:'switch',icon:'🔀',name:'Switch',ip:'192.168.1.2',x:30,y:50,status:'ok'},
+{id:'webserver',icon:'🖥️',name:'Web Server',ip:'192.168.1.100',x:55,y:30,status:'err'},
+{id:'dbserver',icon:'🗄️',name:'DB Server',ip:'192.168.1.101',x:55,y:70,status:'ok'},
+{id:'router',icon:'📡',name:'Router',ip:'192.168.1.1',x:80,y:50,status:'ok'},
+],
+commands:{
+'ping-webserver':'Pinging 192.168.1.100: Reply time=1ms\nReply time=450ms\nReply time=2ms\nReply time=890ms\n✗ INCONSISTENT response times! Huge latency spikes!',
+'ping-dbserver':'Pinging 192.168.1.101: Reply time=1ms\n✓ Database server responds normally',
+'ping-router':'Pinging 192.168.1.1: Reply time=1ms\n✓ Router is fine',
+'traceroute-webserver':'1  192.168.1.2  1ms  (Switch)\n2  192.168.1.100  450ms ← HIGH LATENCY\n✗ The problem is at the web server itself, not the network path',
+'ipconfig-webserver':'IPv4: 192.168.1.100\nCPU Usage: 98%!\nMemory: 7.8/8 GB used!\nDisk: 99% full!\n✗ SERVER IS OVERLOADED!',
+},
+options:['Web server is overloaded — high CPU, full memory, disk 99% full','Network cable between switch and web server is damaged','DNS is returning wrong IP address for the website','Database server is causing the slowdown'],
+correct:0,
+explain:'The web server is at 98% CPU, nearly full memory, and 99% disk. Network path is fine (traceroute shows latency only at the server). Fix: investigate what process is consuming resources (could be a runaway process, too many connections, or even cryptocurrency mining malware), free disk space, and consider upgrading resources.'},
+
+{title:'Users can access internal sites but NOT the internet',ticket:'All users report: "I can access the file server, printer, and internal sites. But Google, YouTube — nothing external works."',
+devices:[
+{id:'pc1',icon:'💻',name:'User PC',ip:'192.168.1.50',x:10,y:50,status:'warn'},
+{id:'switch',icon:'🔀',name:'Switch',ip:'192.168.1.2',x:30,y:50,status:'ok'},
+{id:'fileserver',icon:'📁',name:'File Server',ip:'192.168.1.20',x:30,y:20,status:'ok'},
+{id:'router',icon:'📡',name:'Router/GW',ip:'192.168.1.1',x:55,y:50,status:'err'},
+{id:'isp',icon:'🌐',name:'Internet',ip:'External',x:80,y:50,status:'err'},
+],
+commands:{
+'ping-switch':'Pinging 192.168.1.2: Reply from 192.168.1.2: time=1ms\n✓ Switch OK',
+'ping-fileserver':'Pinging 192.168.1.20: Reply from 192.168.1.20: time=1ms\n✓ File server OK — internal network works!',
+'ping-router':'Pinging 192.168.1.1: Reply from 192.168.1.1: time=1ms\n✓ Router is reachable',
+'ping-isp':'Pinging 8.8.8.8: Request timed out.\nRequest timed out.\n✗ Cannot reach the internet!',
+'traceroute-isp':'1  192.168.1.1  1ms  (Router)\n2  * * * Request timed out\n3  * * * Request timed out\n✗ Traffic dies after the router!',
+'ipconfig-router':'WAN Interface: Status = DOWN\nWAN IP: (not assigned)\nLAN Interface: 192.168.1.1 — UP\n✗ WAN connection is DOWN!',
+},
+options:['Switch is broken','DNS server is misconfigured','Router WAN interface is down — the connection between the router and the ISP is broken','All user PCs have wrong gateway settings'],
+correct:2,
+explain:'Internal traffic works (ping to file server OK) but nothing goes past the router. Traceroute dies after hop 1. ipconfig on the router shows WAN interface is DOWN. Fix: check the WAN cable, restart the modem, or contact the ISP.'},
+
+{title:'Users cannot reach the printer',ticket:'Users report: "I cannot print. The printer shows offline. Everything else works fine — internet, email, file server all OK."',
+devices:[
+{id:'pc1',icon:'💻',name:'User PC',ip:'192.168.1.50',x:10,y:40,status:'ok'},
+{id:'switch',icon:'🔀',name:'Switch',ip:'192.168.1.2',x:35,y:40,status:'ok'},
+{id:'printer',icon:'🖨️',name:'Printer',ip:'192.168.1.30',x:35,y:80,status:'err'},
+{id:'router',icon:'📡',name:'Router',ip:'192.168.1.1',x:60,y:40,status:'ok'},
+{id:'isp',icon:'🌐',name:'Internet',ip:'8.8.8.8',x:85,y:40,status:'ok'},
+],
+commands:{
+'ping-router':'Pinging 192.168.1.1: Reply: time=1ms\n✓ Router OK',
+'ping-isp':'Pinging 8.8.8.8: Reply: time=10ms\n✓ Internet OK',
+'ping-printer':'Pinging 192.168.1.30: Request timed out.\n✗ Printer is NOT reachable!',
+'ping-switch':'Pinging 192.168.1.2: Reply: time=1ms\n✓ Switch OK',
+'arp-pc1':'192.168.1.1    aa:bb:cc:11:22:33   dynamic\n192.168.1.2    aa:bb:cc:44:55:66   dynamic\n✗ No ARP entry for 192.168.1.30 (printer)',
+'ipconfig-printer':'ERROR: Cannot connect to printer.\nPossible causes:\n  - Network cable disconnected\n  - Printer powered off\n  - Wrong IP configuration on printer\n✗ Physical connection issue suspected',
+},
+options:['DNS server cannot resolve the printer name','The printer is physically disconnected — cable unplugged, powered off, or wrong IP configured on the printer','The switch is blocking printer traffic','The router firewall is blocking port 9100 (printing)'],
+correct:1,
+explain:'Everything else works (internet, router, switch all respond). Only the printer is unreachable. No ARP entry means the printer is not even responding at Layer 2. This is a Layer 1 (physical) problem: cable unplugged, printer powered off, or the printer\'s network interface is misconfigured. Fix: check the cable and power first!'},
+
+{title:'Intermittent connectivity — drops every few minutes',ticket:'Users report: "My internet works for 2-3 minutes, then drops for 30 seconds, then comes back. It keeps happening all day."',
+devices:[
+{id:'pc1',icon:'💻',name:'User PC',ip:'192.168.1.50',x:10,y:50,status:'warn'},
+{id:'switch',icon:'🔀',name:'Switch',ip:'192.168.1.2',x:30,y:50,status:'warn'},
+{id:'router',icon:'📡',name:'Router',ip:'192.168.1.1',x:55,y:50,status:'warn'},
+{id:'isp',icon:'🌐',name:'Internet',ip:'8.8.8.8',x:80,y:50,status:'ok'},
+],
+commands:{
+'ping-router':'Pinging 192.168.1.1:\nReply: time=1ms\nReply: time=1ms\nReply: time=1ms\nRequest timed out.\nRequest timed out.\nRequest timed out.\nReply: time=1ms\n✗ INTERMITTENT — drops then recovers!',
+'ping-switch':'Pinging 192.168.1.2:\nReply: time=1ms\nReply: time=1ms\nRequest timed out.\nReply: time=1ms\n✗ Also intermittent to the switch!',
+'ping-isp':'Pinging 8.8.8.8:\nReply: time=12ms\nRequest timed out.\nReply: time=12ms\nRequest timed out.\n✗ Internet also intermittent',
+'ipconfig-pc1':'IPv4: 192.168.1.50\nGateway: 192.168.1.1\nDNS: 192.168.1.10\nMedia State: Connected\n⚠ Interface speed: 10 Mbps (expected: 1000 Mbps!)\n✗ Running at 1% of expected speed!',
+'ipconfig-switch':'Port 5 (User PC): Link flapping! (up/down every 2-3 min)\nCRC Errors: 14,892\nDuplex mismatch detected!\n✗ Physical layer problem on port 5!',
+},
+options:['DNS server is intermittently failing','ISP is having outages','Bad cable or damaged port — CRC errors and link flapping indicate a Layer 1 physical problem','Router firmware needs update'],
+correct:2,
+explain:'CRC errors (14,892!) and link flapping = damaged cable or bad port. The connection keeps dropping and reconnecting. Running at 10 Mbps instead of 1000 Mbps = auto-negotiation falling back due to bad signal. This is a Layer 1 (Physical) problem. Fix: replace the Ethernet cable. If it persists, try a different switch port.'},
+];
+
+let caseIdx=0,selectedTool=null,solved=new Set();
+
+function startGame(){document.getElementById('overlay').style.display='none';caseIdx=0;solved=new Set();loadCase();}
+
+function loadCase(){
+  const c=CASES[caseIdx];
+  document.getElementById('h-case').textContent=(caseIdx+1)+'/'+CASES.length;
+  document.getElementById('ticket').innerHTML=`<div class="ticket-title">🔴 ${c.title}</div><div class="ticket-body">${c.ticket}</div>`;
+  document.getElementById('terminal').innerHTML='<span class="term-info">Select a tool and click a device to run diagnostics...</span>';
+  selectedTool=null;
+  
+  // Render tools
+  document.getElementById('tools').innerHTML=TOOLS.map(t=>`<div class="tool-btn" id="tb-${t.id}" onclick="selectTool('${t.id}')">${t.icon} ${t.name}</div>`).join('');
+  
+  // Render network map
+  const map=document.getElementById('netmap');
+  map.innerHTML='';
+  c.devices.forEach(d=>{
+    const div=document.createElement('div');
+    div.className='device';
+    div.style.left=d.x+'%';div.style.top=d.y+'%';
+    div.innerHTML=`<div class="dev-icon">${d.icon}</div><div class="dev-name">${d.name}</div><div class="dev-ip">${d.ip}</div><div class="dev-status ds-${d.status}"></div>`;
+    div.onclick=()=>runTool(d.id);
+    map.appendChild(div);
+  });
+  
+  // Render diagnosis options
+  document.getElementById('diag-opts').innerHTML=c.options.map((o,i)=>`<div class="diag-opt" onclick="diagnose(${i})">${o}</div>`).join('');
+}
+
+function selectTool(id){
+  selectedTool=id;
+  document.querySelectorAll('.tool-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tb-'+id).classList.add('active');
+}
+
+function runTool(deviceId){
+  if(!selectedTool)return;
+  const c=CASES[caseIdx];
+  const key=selectedTool+'-'+deviceId;
+  const output=c.commands[key];
+  const term=document.getElementById('terminal');
+  const device=c.devices.find(d=>d.id===deviceId);
+  
+  if(output){
+    term.innerHTML+=`\n<span class="term-cmd">> ${selectedTool} ${device.name} (${device.ip})</span>\n`+
+    output.split('\n').map(line=>{
+      if(line.startsWith('✓'))return`<span class="term-ok">${line}</span>`;
+      if(line.startsWith('✗')||line.startsWith('⚠'))return`<span class="term-err">${line}</span>`;
+      return`<span>${line}</span>`;
+    }).join('\n')+'\n';
+  } else {
+    term.innerHTML+=`\n<span class="term-cmd">> ${selectedTool} ${device.name} (${device.ip})</span>\n<span class="term-info">No specific output for this combination. Try a different tool or device.</span>\n`;
+  }
+  term.scrollTop=term.scrollHeight;
+}
+
+function diagnose(i){
+  const c=CASES[caseIdx];
+  const opts=document.querySelectorAll('.diag-opt');
+  opts.forEach((o,j)=>{
+    if(j===c.correct)o.classList.add('correct');
+    if(j===i&&j!==c.correct)o.classList.add('wrong');
+    o.style.pointerEvents='none';
+  });
+  
+  const term=document.getElementById('terminal');
+  term.innerHTML+=`\n<span class="${i===c.correct?'term-ok':'term-err'}">${i===c.correct?'✅ CORRECT!':'❌ WRONG!'} ${c.explain}</span>\n`;
+  term.scrollTop=term.scrollHeight;
+  
+  if(i===c.correct)solved.add(caseIdx);
+  
+  setTimeout(()=>{
+    caseIdx++;
+    if(caseIdx>=CASES.length){
+      document.getElementById('overlay').style.display='flex';
+      document.getElementById('overlay').innerHTML=`<div class="overlay-box">
+      <h2 style="color:#4ade80">🏥 Shift Complete!</h2>
+      <p>You diagnosed ${solved.size}/${CASES.length} network problems correctly.</p>
+      <p style="color:#555">${solved.size>=5?'Expert network doctor!':solved.size>=3?'Good troubleshooting instincts.':'Review: always start from Layer 1 (physical) and work upward.'}</p>
+      <button class="big-btn" onclick="startGame()">Play again →</button></div>`;
+    } else {loadCase();}
+  },3000);
+}
+</script>
+</body></html>

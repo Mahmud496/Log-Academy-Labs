@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>DHCP Attacks — Deep Dive</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;700&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;background:#060610;font-family:'Outfit',sans-serif;color:#e0e0e0}
+header{height:44px;background:#10101a;border-bottom:1px solid #1a1a2e;display:flex;align-items:center;padding:0 14px}
+header h1{font-size:15px;font-weight:900}header h1 span{color:#10b981}
+.tabs{display:flex;gap:3px;margin-left:auto}
+.tab{padding:4px 10px;border-radius:5px;font-size:9px;font-weight:700;cursor:pointer;border:1.5px solid #1a1a2e;background:transparent;color:#555;font-family:'Outfit'}
+.tab:hover{border-color:#10b981;color:#10b981}.tab.on{border-color:#10b981;color:#10b981;background:rgba(16,185,129,.06)}
+.container{max-width:750px;margin:0 auto;padding:16px}
+.sec{display:none}.sec.on{display:block}
+.diagram{background:#0a0a16;border:2px solid #1a1a2e;border-radius:14px;padding:20px;margin-bottom:12px}
+.row{display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:10px;flex-wrap:wrap;min-height:60px}
+.entity{display:flex;flex-direction:column;align-items:center;padding:8px 10px;border-radius:10px;border:2px solid #2a2a3e;background:#10101a;min-width:68px;transition:all .3s}
+.entity.hl{border-color:#10b981;background:rgba(16,185,129,.04);box-shadow:0 0 16px rgba(16,185,129,.1)}
+.entity.bad{border-color:rgba(255,107,107,.3);background:rgba(255,107,107,.04)}.entity.bad.hl{border-color:#ff6b6b;box-shadow:0 0 16px rgba(255,107,107,.15)}
+.entity.good{border-color:rgba(74,222,128,.2)}
+.e-icon{font-size:26px;margin-bottom:2px}.e-name{font-size:8px;font-weight:700;color:#888;text-align:center}.e-ip{font-family:'IBM Plex Mono';font-size:7px;color:#444;margin-top:1px;text-align:center}
+.arrow{font-size:18px;color:#2a2a3e;flex-shrink:0}.arrow.atk{color:#ff6b6b;animation:p 1s infinite}.arrow.ok{color:#4ade80}
+@keyframes p{0%,100%{opacity:1}50%{opacity:.3}}
+.pkt{display:inline-block;padding:4px 10px;border-radius:6px;font-family:'IBM Plex Mono';font-size:10px;font-weight:700;animation:f 2s infinite;margin:6px auto;text-align:center}
+.pkt-ok{background:rgba(74,222,128,.1);color:#4ade80;border:1px solid rgba(74,222,128,.15)}
+.pkt-bad{background:rgba(255,107,107,.1);color:#ff6b6b;border:1px solid rgba(255,107,107,.15)}
+.pkt-info{background:rgba(56,189,248,.1);color:#38bdf8;border:1px solid rgba(56,189,248,.15)}
+@keyframes f{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+.pool{background:#0a0a14;border:1px solid #1a1a2e;border-radius:8px;padding:10px;margin:10px 0}
+.pool-title{font-size:9px;font-weight:700;color:#10b981;margin-bottom:6px;letter-spacing:1px}
+.pool-grid{display:flex;flex-wrap:wrap;gap:3px}
+.pool-ip{font-family:'IBM Plex Mono';font-size:9px;padding:3px 6px;border-radius:3px;border:1px solid #1a1a2e}
+.pool-free{color:#4ade80;border-color:rgba(74,222,128,.15)}.pool-used{color:#ff6b6b;border-color:rgba(255,107,107,.15);background:rgba(255,107,107,.04)}.pool-ok{color:#38bdf8;border-color:rgba(56,189,248,.15)}
+.step-card{background:#10101a;border:2px solid #1a1a2e;border-radius:12px;padding:16px;margin-bottom:12px}
+.step-num{font-family:'IBM Plex Mono';font-size:10px;color:#10b981;margin-bottom:4px}
+.step-title{font-size:16px;font-weight:800;color:#f0f0f0;margin-bottom:6px}
+.step-detail{font-size:12px;color:#888;line-height:1.8}.step-detail b{color:#f0f0f0}
+.defense{background:rgba(74,222,128,.04);border:1px solid rgba(74,222,128,.1);border-radius:8px;padding:10px;font-size:11px;color:#4ade80;line-height:1.7;margin-bottom:12px}
+.nav{display:flex;gap:8px;justify-content:center;margin-bottom:12px}
+.nav-btn{padding:8px 24px;border-radius:99px;border:1.5px solid #2a2a3e;background:transparent;color:#888;font-size:12px;font-weight:700;cursor:pointer;font-family:'Outfit'}
+.nav-btn:hover{border-color:#10b981;color:#10b981}.nav-btn.primary{border-color:#10b981;color:#10b981}
+.dots{display:flex;gap:4px;justify-content:center;margin-bottom:8px}
+.dot{width:18px;height:4px;border-radius:2px;background:#1a1a2e}.dot.done{background:#10b981}.dot.on{background:#ff6b6b}
+</style>
+</head>
+<body>
+<header><h1>DHCP <span>Attacks</span> — Deep Dive</h1>
+<div class="tabs">
+<div class="tab on" onclick="goSec(0)">DHCP Starvation</div>
+<div class="tab" onclick="goSec(1)">Rogue DHCP Server</div>
+<div class="tab" onclick="goSec(2)">Combined Attack</div>
+<div class="tab" onclick="goSec(3)">Defenses</div>
+</div></header>
+<div class="container"><div class="sec on" id="s0"></div><div class="sec" id="s1"></div><div class="sec" id="s2"></div><div class="sec" id="s3"></div></div>
+<script>
+function goSec(n){document.querySelectorAll('.sec').forEach((s,i)=>s.classList.toggle('on',i===n));document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('on',i===n));loadSection(n);}
+const S=[
+// DHCP STARVATION
+[
+{title:'Normal DHCP — Server Has a Pool of IPs',detail:'The DHCP server has a pool of available IP addresses (e.g., 192.168.1.100 to 192.168.1.200 = 100 addresses).<br><br>When a device connects, DORA happens:<br>1. <b>Discover</b> — "I need an IP!"<br>2. <b>Offer</b> — "Here, take .100"<br>3. <b>Request</b> — "I\'ll take .100"<br>4. <b>Acknowledge</b> — "Confirmed. Lease time: 24 hours."<br><br>Each IP is <b>leased</b>, not permanently assigned. When the lease expires and the device is gone, the IP returns to the pool.',
+diagram:`<div class="row">
+<div class="entity good"><div class="e-icon">💻</div><div class="e-name">New Device</div><div class="e-ip">No IP yet</div></div>
+<div class="arrow ok">DORA →</div>
+<div class="entity good hl"><div class="e-icon">🖥️</div><div class="e-name">DHCP Server</div><div class="e-ip">Pool: .100 to .200</div></div>
+</div>
+<div style="text-align:center"><div class="pkt pkt-ok">Discover → Offer (.100) → Request → Acknowledge ✓</div></div>
+<div class="pool"><div class="pool-title">IP Pool Status (Normal — plenty available)</div><div class="pool-grid">
+<div class="pool-ip pool-ok">.100 (PC-A)</div><div class="pool-ip pool-ok">.101 (PC-B)</div><div class="pool-ip pool-ok">.102 (Phone)</div>
+<div class="pool-ip pool-free">.103 free</div><div class="pool-ip pool-free">.104 free</div><div class="pool-ip pool-free">.105 free</div>
+<div class="pool-ip pool-free">.106 free</div><div class="pool-ip pool-free">.107 free</div><div class="pool-ip pool-free">...97 more free</div>
+</div></div>`},
+
+{title:'DHCP Starvation — Attacker Exhausts the Pool',detail:'The attacker runs a tool like <b>dhcpig</b> or <b>yersinia</b>. It sends hundreds of DHCP Discover messages, each with a <b>DIFFERENT FAKE MAC address</b>.<br><br>The DHCP server treats each one as a new, unique device. It assigns an IP to each fake MAC.<br><br>Within seconds: <b>the entire pool is exhausted</b>. All 100 IPs are "leased" to fake devices that don\'t exist.',
+diagram:`<div class="row">
+<div class="entity bad hl"><div class="e-icon">💀</div><div class="e-name">Attacker</div><div class="e-ip">Sends 100 fake MACs</div></div>
+<div class="arrow atk">💥💥💥</div>
+<div class="entity hl"><div class="e-icon">🖥️</div><div class="e-name">DHCP Server</div><div class="e-ip">Assigning IPs to fakes...</div></div>
+</div>
+<div style="text-align:center"><div class="pkt pkt-bad">DISCOVER (MAC: AA:11) → DISCOVER (MAC: BB:22) → DISCOVER (MAC: CC:33) → ...</div></div>
+<div class="pool"><div class="pool-title">IP Pool Status (UNDER ATTACK! 🚨)</div><div class="pool-grid">
+<div class="pool-ip pool-used">.100 FAKE</div><div class="pool-ip pool-used">.101 FAKE</div><div class="pool-ip pool-used">.102 FAKE</div>
+<div class="pool-ip pool-used">.103 FAKE</div><div class="pool-ip pool-used">.104 FAKE</div><div class="pool-ip pool-used">.105 FAKE</div>
+<div class="pool-ip pool-used">.106 FAKE</div><div class="pool-ip pool-used">.107 FAKE</div><div class="pool-ip pool-used">...ALL USED BY FAKES</div>
+</div></div>`},
+
+{title:'Legitimate Users Get NOTHING',detail:'Now a real employee connects their laptop to the network. Their laptop sends a DHCP Discover. The server has <b>NO IPs left</b>.<br><br>Result: the laptop gets <b>NO IP address</b>. It falls back to <b>APIPA (169.254.x.x)</b> — a self-assigned address that cannot communicate with the network.<br><br><b>The employee has NO internet, NO email, NO file server access.</b> The network is effectively DOWN for new devices.<br><br>This is a <b>Denial of Service (DoS)</b> attack.',
+diagram:`<div class="row">
+<div class="entity"><div class="e-icon">💻</div><div class="e-name">Real Employee</div><div class="e-ip">DHCP Discover...</div></div>
+<div class="arrow atk">→ ✗</div>
+<div class="entity bad"><div class="e-icon">🖥️</div><div class="e-name">DHCP Server</div><div class="e-ip">POOL EMPTY!</div><div class="e-ip">No IPs available</div></div>
+</div>
+<div style="text-align:center"><div class="pkt pkt-bad">Employee gets: 169.254.x.x (APIPA) = NO NETWORK ACCESS</div></div>`},
+],
+// ROGUE DHCP
+[
+{title:'Rogue DHCP Server — The REAL Danger',detail:'DHCP starvation alone is just a DoS. But combined with a <b>rogue DHCP server</b>, it becomes a <b>full Man-in-the-Middle attack</b>.<br><br><b>Step 1:</b> Attacker starves the legitimate DHCP server (pool empty)<br><b>Step 2:</b> Attacker starts their OWN DHCP server on the network<br><b>Step 3:</b> When new devices connect and send Discover, the attacker\'s server responds<br><b>Step 4:</b> The attacker assigns: a valid IP, but sets the <b>GATEWAY = attacker\'s IP</b> and <b>DNS = attacker\'s DNS</b>',
+diagram:`<div class="row">
+<div class="entity"><div class="e-icon">💻</div><div class="e-name">New Device</div><div class="e-ip">DHCP Discover...</div></div>
+<div class="arrow atk">←</div>
+<div class="entity bad hl"><div class="e-icon">💀</div><div class="e-name">ROGUE DHCP</div><div class="e-ip">Attacker\'s server</div></div>
+</div>
+<div class="row" style="opacity:.3">
+<div class="entity"><div class="e-icon">🖥️</div><div class="e-name">Real DHCP</div><div class="e-ip">Pool empty (starved)</div></div>
+</div>
+<div style="text-align:center"><div class="pkt pkt-bad">Rogue DHCP offers: IP=.150, Gateway=ATTACKER, DNS=ATTACKER</div></div>`},
+
+{title:'Victim Gets Poisoned Configuration',detail:'The victim receives from the rogue DHCP:<br><br>• <b>IP Address:</b> 192.168.1.150 (valid — works normally)<br>• <b>Subnet Mask:</b> 255.255.255.0 (correct)<br>• <b>Default Gateway:</b> 192.168.1.99 (<b>ATTACKER\'S IP!</b>)<br>• <b>DNS Server:</b> 192.168.1.99 (<b>ATTACKER\'S DNS!</b>)<br><br>The victim has a working IP and thinks everything is fine. But <b>ALL their traffic routes through the attacker</b> (because the gateway is the attacker). And ALL their DNS queries go to the attacker\'s fake DNS (which can redirect any domain to a phishing site).',
+diagram:`<div class="row">
+<div class="entity"><div class="e-icon">💻</div><div class="e-name">Victim</div><div class="e-ip">IP: .150 ✓</div><div class="e-ip">GW: .99 ← ATTACKER!</div><div class="e-ip">DNS: .99 ← ATTACKER!</div></div>
+<div class="arrow atk">ALL traffic →</div>
+<div class="entity bad hl"><div class="e-icon">💀</div><div class="e-name">Attacker (.99)</div><div class="e-ip">Gateway + DNS</div><div class="e-ip">Sees EVERYTHING</div></div>
+<div class="arrow">→</div>
+<div class="entity"><div class="e-icon">📡</div><div class="e-name">Real Router</div></div>
+</div>
+<div style="text-align:center"><div class="pkt pkt-bad">Victim thinks they\'re talking to the router — but it\'s the attacker</div></div>`},
+
+{title:'Why This Is So Dangerous',detail:'This attack is more powerful than ARP spoofing because:<br><br>• 🔇 <b>Zero interaction needed</b> — victim just connects to the network<br>• 📋 <b>No warnings</b> — everything works normally from the victim\'s perspective<br>• 🔍 <b>Controls DNS</b> — can redirect ANY website to a phishing page<br>• 📡 <b>Controls routing</b> — sees ALL internet traffic<br>• 🔄 <b>Persistent</b> — lasts for the entire DHCP lease duration (hours/days)<br>• 👥 <b>Scales</b> — affects every NEW device that connects, not just one target<br><br><b>The victim cannot detect this</b> without running ipconfig and knowing what the real gateway should be.',
+diagram:`<div class="row" style="justify-content:center;gap:8px">
+<div class="pkt pkt-bad">🔇 No user interaction</div>
+<div class="pkt pkt-bad">📋 No warnings</div>
+<div class="pkt pkt-bad">🔍 Controls DNS</div>
+</div>
+<div class="row" style="justify-content:center;gap:8px">
+<div class="pkt pkt-bad">📡 Controls routing</div>
+<div class="pkt pkt-bad">🔄 Persistent (hours)</div>
+<div class="pkt pkt-bad">👥 Hits ALL new devices</div>
+</div>`},
+],
+// COMBINED ATTACK
+[
+{title:'The Full Attack Chain',detail:'<b>Phase 1: Reconnaissance</b><br>Attacker connects to the network and discovers the DHCP server, gateway IP, and DNS server using ipconfig and nmap.<br><br><b>Phase 2: DHCP Starvation</b><br>Run dhcpig → exhaust the legitimate DHCP pool in 30 seconds.<br><br><b>Phase 3: Rogue DHCP</b><br>Start rogue DHCP server. Set gateway=attacker, DNS=attacker.<br><br><b>Phase 4: MitM</b><br>All new connections now route through attacker. Sniff passwords, redirect DNS, inject malware into HTTP downloads.<br><br><b>Total time from connect to full MitM: under 2 minutes.</b>',
+diagram:`<div class="row">
+<div class="entity"><div class="e-icon">🔍</div><div class="e-name">Phase 1</div><div class="e-ip">Recon (30s)</div></div>
+<div class="arrow atk">→</div>
+<div class="entity bad"><div class="e-icon">💥</div><div class="e-name">Phase 2</div><div class="e-ip">Starve DHCP (30s)</div></div>
+<div class="arrow atk">→</div>
+<div class="entity bad"><div class="e-icon">💀</div><div class="e-name">Phase 3</div><div class="e-ip">Rogue DHCP (10s)</div></div>
+<div class="arrow atk">→</div>
+<div class="entity bad hl"><div class="e-icon">👁️</div><div class="e-name">Phase 4</div><div class="e-ip">Full MitM</div></div>
+</div>
+<div style="text-align:center"><div class="pkt pkt-bad">Connect → Starve → Rogue → MitM = under 2 minutes</div></div>`},
+],
+// DEFENSES
+[
+{title:'Defense 1: DHCP Snooping',detail:'<b>DHCP Snooping</b> runs on managed switches. It\'s the #1 defense against DHCP attacks.<br><br><b>How it works:</b><br>1. Switch ports are classified as <b>TRUSTED</b> or <b>UNTRUSTED</b><br>2. Only <b>TRUSTED ports</b> (where the real DHCP server is) can send DHCP Offer/Acknowledge<br>3. DHCP responses from UNTRUSTED ports are <b>DROPPED</b><br>4. The switch builds a <b>binding table</b>: MAC + IP + Port + Lease time<br>5. This binding table is also used by <b>Dynamic ARP Inspection</b> (DAI)<br><br>A rogue DHCP server on an untrusted port = all its responses are silently dropped. The attacker\'s DHCP server is completely neutralized.',
+diagram:`<div class="row">
+<div class="entity bad"><div class="e-icon">💀</div><div class="e-name">Rogue DHCP</div><div class="e-ip">UNTRUSTED port</div></div>
+<div class="arrow atk">→ DHCP Offer</div>
+<div class="entity good hl"><div class="e-icon">🔀</div><div class="e-name">Switch</div><div class="e-ip">DHCP Snooping ON</div><div class="e-ip">Untrusted → DROP! ✗</div></div>
+<div class="arrow">✗ blocked</div>
+<div class="entity good"><div class="e-icon">💻</div><div class="e-name">Client</div><div class="e-ip">Never sees rogue</div></div>
+</div>
+<div class="row">
+<div class="entity good"><div class="e-icon">🖥️</div><div class="e-name">Real DHCP</div><div class="e-ip">TRUSTED port ✓</div></div>
+<div class="arrow ok">→ DHCP Offer ✓</div>
+<div class="entity good"><div class="e-icon">🔀</div><div class="e-name">Switch</div><div class="e-ip">Trusted → ALLOW ✓</div></div>
+<div class="arrow ok">→</div>
+<div class="entity good"><div class="e-icon">💻</div><div class="e-name">Client</div></div>
+</div>
+<div style="text-align:center"><div class="pkt pkt-ok">Only the real DHCP server can respond. Rogue is blocked.</div></div>`},
+
+{title:'Defense 2: Port Security + Rate Limiting',detail:'<b>Port Security:</b><br>Limit the number of MAC addresses per switch port. Example: max 2 MACs per port.<br>DHCP starvation needs hundreds of fake MACs → port security blocks the flood after 2 MACs and shuts down the port.<br><br><b>Rate Limiting:</b><br>Limit the number of DHCP packets per port per second. Normal: 1-2 DHCP packets/sec. Starvation: 100+ packets/sec.<br>Rate limiting blocks the starvation attack before the pool is drained.<br><br><b>802.1X Authentication:</b><br>Require device authentication before network access. Unauthorized devices cannot even send DHCP Discover — they\'re blocked at the port level.',
+diagram:`<div class="row">
+<div class="entity bad"><div class="e-icon">💀</div><div class="e-name">Attacker</div><div class="e-ip">Sends 100 fake MACs</div></div>
+<div class="arrow atk">💥</div>
+<div class="entity good hl"><div class="e-icon">🔀</div><div class="e-name">Switch</div><div class="e-ip">Port Security: Max 2 MACs</div><div class="e-ip">3rd MAC → PORT SHUTDOWN!</div></div>
+</div>
+<div style="text-align:center"><div class="pkt pkt-ok">Port disabled after violation. Attacker disconnected. Alert sent to admin.</div></div>
+<div class="defense">🛡️ <b>Complete defense stack:</b><br>
+1. <b>DHCP Snooping</b> → blocks rogue DHCP servers<br>
+2. <b>Port Security</b> → blocks MAC flooding / starvation<br>
+3. <b>Rate Limiting</b> → blocks DHCP packet floods<br>
+4. <b>DAI (Dynamic ARP Inspection)</b> → blocks ARP spoofing using DHCP snooping data<br>
+5. <b>802.1X</b> → authenticates devices before they access the network<br><br>
+These five controls work TOGETHER. DHCP snooping feeds DAI. Port security prevents starvation. 802.1X prevents unauthorized access entirely. <b>This is defense in depth at Layer 2.</b></div>`},
+],
+];
+
+let si=[0,0,0,0];
+function loadSection(n){const steps=S[n];const i=si[n];const s=steps[i];
+document.getElementById('s'+n).innerHTML=`${s.diagram}
+<div class="step-card"><div class="step-num">STEP ${i+1} OF ${steps.length}</div>
+<div class="step-title">${s.title}</div><div class="step-detail">${s.detail}</div></div>
+<div class="dots">${steps.map((_,j)=>`<div class="dot${j<i?' done':''}${j===i?' on':''}"></div>`).join('')}</div>
+<div class="nav"><div class="nav-btn" onclick="pv(${n})">← Back</div><div class="nav-btn primary" onclick="nx(${n})">Next →</div></div>`;}
+function nx(n){if(si[n]<S[n].length-1){si[n]++;loadSection(n);}}
+function pv(n){if(si[n]>0){si[n]--;loadSection(n);}}
+document.addEventListener('keydown',e=>{const a=[...document.querySelectorAll('.sec')].findIndex(s=>s.classList.contains('on'));if(e.key==='ArrowRight'||e.key===' ')nx(a);if(e.key==='ArrowLeft')pv(a);});
+loadSection(0);
+</script>
+</body></html>

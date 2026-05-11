@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Cyber Recon Mission</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;700&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;background:#060610;font-family:'Outfit',sans-serif;color:#e0e0e0}
+header{height:48px;background:#10101a;border-bottom:1px solid #1a1a2e;display:flex;align-items:center;padding:0 16px}
+header h1{font-size:16px;font-weight:900}header h1 span{color:#ff6b6b}
+.hdr-r{margin-left:auto;font-family:'IBM Plex Mono';font-size:11px;color:#888}
+.container{max-width:700px;margin:0 auto;padding:20px}
+
+.scoreboard{background:#10101a;border:2px solid #1a1a2e;border-radius:14px;padding:16px;text-align:center;margin-bottom:14px}
+.score-big{font-family:'IBM Plex Mono';font-size:36px;font-weight:900;color:#ff6b6b}
+.score-label{font-size:11px;color:#555;margin-top:2px}
+.progress-bar{height:6px;background:#1a1a2e;border-radius:3px;margin-top:8px;overflow:hidden}
+.progress-fill{height:100%;background:linear-gradient(90deg,#ff6b6b,#f472b6);border-radius:3px;transition:width .3s}
+
+.mission{background:#10101a;border:2px solid #1a1a2e;border-radius:14px;overflow:hidden;margin-bottom:10px}
+.m-hdr{padding:12px 16px;border-bottom:1px solid #1a1a2e;display:flex;align-items:center;gap:8px;cursor:pointer}
+.m-hdr:hover{background:#12121e}
+.m-num{font-family:'IBM Plex Mono';font-size:10px;font-weight:700;color:#ff6b6b;background:rgba(255,107,107,.08);padding:3px 8px;border-radius:4px}
+.m-cat{font-size:8px;font-weight:700;padding:2px 6px;border-radius:3px;text-transform:uppercase;letter-spacing:1px}
+.cat-fw{background:rgba(56,189,248,.08);color:#38bdf8}.cat-proc{background:rgba(168,85,247,.08);color:#a855f7}
+.cat-port{background:rgba(251,191,36,.08);color:#fbbf24}.cat-log{background:rgba(74,222,128,.08);color:#4ade80}
+.cat-web{background:rgba(244,114,182,.08);color:#f472b6}.cat-hash{background:rgba(251,146,60,.08);color:#fb923c}
+.cat-osint{background:rgba(99,102,241,.08);color:#818cf8}
+.m-title{font-size:13px;font-weight:800;color:#f0f0f0;flex:1}
+.m-check{font-size:16px}
+
+.m-body{padding:16px;display:none}
+.m-body.open{display:block}
+.m-task{font-size:12px;color:#888;line-height:1.8;margin-bottom:12px}
+.cmd-box{background:#050508;border:1px solid #1a1a2e;border-radius:8px;padding:12px;margin-bottom:10px}
+.cmd-label{font-size:9px;color:#555;margin-bottom:4px;text-transform:uppercase;letter-spacing:1px}
+.cmd-text{font-family:'IBM Plex Mono';font-size:13px;color:#ff6b6b;cursor:pointer;user-select:all;word-break:break-all}
+.cmd-note{font-size:9px;color:#333;margin-top:4px}
+
+.ans-label{font-size:10px;font-weight:600;color:#888;margin-bottom:4px;margin-top:10px}
+.ans-row{display:flex;gap:6px}
+.ans-input{flex:1;padding:10px 12px;border:1.5px solid #1a1a2e;border-radius:6px;background:#050508;color:#f0f0f0;font-family:'IBM Plex Mono';font-size:12px;outline:none}
+.ans-input:focus{border-color:#ff6b6b}
+.ans-input.done{border-color:#4ade80;background:rgba(74,222,128,.02);color:#4ade80}
+.ans-btn{padding:10px 16px;border-radius:6px;border:1.5px solid #ff6b6b;background:transparent;color:#ff6b6b;font-size:11px;font-weight:700;cursor:pointer;font-family:'Outfit'}
+
+.m-hint{font-size:10px;color:#333;cursor:pointer;margin-top:8px}
+.m-hint:hover{color:#58a6ff}
+.m-explain{background:rgba(88,166,255,.04);border:1px solid rgba(88,166,255,.1);border-radius:6px;padding:8px;font-size:10px;color:#58a6ff;line-height:1.6;margin-top:6px;display:none}
+.m-explain.show{display:block}
+</style>
+</head>
+<body>
+<header><h1>Cyber <span>Recon</span> Mission</h1><span class="hdr-r" id="hdr-status">0/20</span></header>
+<div class="container">
+<div class="scoreboard">
+<div class="score-big" id="score">0/20</div>
+<div class="score-label">Security Checks Completed</div>
+<div class="progress-bar"><div class="progress-fill" id="prog" style="width:0%"></div></div>
+</div>
+<div id="missions"></div>
+</div>
+<script>
+const M=[
+// FIREWALL
+{n:'01',cat:'fw',catName:'Firewall',title:'Is your firewall ON?',
+task:'Run this command in CMD (<b>Run as Administrator</b>). Is your firewall enabled for all profiles (Domain, Private, Public)?',
+cmd:'netsh advfirewall show allprofiles state',
+label:'Are all profiles ON? (yes/no)',ph:'yes or no',
+val:v=>/^(yes|no)$/i.test(v.trim()),
+explain:'Windows Firewall has 3 profiles: Domain (corporate network), Private (home), Public (coffee shop). ALL should be ON. If any is OFF, your computer accepts all incoming connections — wide open to attacks.'},
+
+{n:'02',cat:'fw',catName:'Firewall',title:'How many firewall rules do you have?',
+task:'This command counts your inbound firewall rules. More rules = more specific control over what can connect to your PC.',
+cmd:'powershell -c "(Get-NetFirewallRule -Direction Inbound).Count"',
+label:'Number of inbound rules',ph:'e.g., 250',
+val:v=>/^\d+$/.test(v.trim()),
+explain:'Each firewall rule either ALLOWS or BLOCKS a specific type of incoming connection. Windows has hundreds of built-in rules. Some are for apps (Chrome, Teams), some for services (Remote Desktop, File Sharing). In a SOC, reviewing firewall rules is a routine security task.'},
+
+{n:'03',cat:'fw',catName:'Firewall',title:'Is Remote Desktop allowed?',
+task:'Check if Remote Desktop (RDP, port 3389) is enabled on your machine. Attackers LOVE RDP — it gives them full control.',
+cmd:'netsh advfirewall firewall show rule name="Remote Desktop" | find "Enabled"',
+label:'Is RDP enabled? (yes/no/not found)',ph:'yes, no, or not found',
+val:v=>v.trim().length>=2,
+explain:'RDP (port 3389) gives FULL graphical control of your computer remotely. If enabled and exposed to the internet, attackers can brute-force the password and take over. RDP is the #1 most exploited service in ransomware attacks. It should be DISABLED unless specifically needed.'},
+
+// PROCESSES
+{n:'04',cat:'proc',catName:'Processes',title:'How many processes are running?',
+task:'Open Task Manager (Ctrl+Shift+Esc). Click "More details" if needed. Look at the bottom — how many processes are running?',
+cmd:'(Ctrl+Shift+Esc → Task Manager)',
+label:'Number of processes',ph:'e.g., 120',
+val:v=>/^\d+$/.test(v.trim()),
+explain:'Each process is a running program. A typical Windows PC has 80-200 processes. If you see 300+, something might be wrong (malware often spawns many processes). SOC analysts look for unusual processes — ones with strange names, high CPU/memory usage, or running from unusual locations like Temp folders.'},
+
+{n:'05',cat:'proc',catName:'Processes',title:'Find the process using the most CPU',
+task:'In Task Manager, click the "CPU" column to sort by CPU usage. What process is using the most CPU right now?',
+cmd:'(Task Manager → sort by CPU column)',
+label:'Process name with highest CPU',ph:'e.g., chrome.exe or System Idle',
+val:v=>v.trim().length>=2,
+explain:'High CPU usage is normal for browsers and games. But if a process you don\'t recognize is using 50-100% CPU, it could be cryptocurrency mining malware (cryptojacker). Real-world example: attackers install hidden miners that use YOUR electricity and CPU to mine crypto for THEM.'},
+
+{n:'06',cat:'proc',catName:'Processes',title:'Check what starts when your PC boots',
+task:'In Task Manager, click the <b>Startup</b> tab. How many programs are set to run at startup? Are there any you don\'t recognize?',
+cmd:'(Task Manager → Startup tab)',
+label:'Number of startup programs',ph:'e.g., 8',
+val:v=>/^\d+$/.test(v.trim()),
+explain:'Malware often adds itself to startup so it runs every time you turn on your PC. This is called PERSISTENCE. If you see programs you don\'t recognize in the Startup tab, investigate them — right-click → "Search online" to check if they\'re legitimate. Disable anything you don\'t need.'},
+
+// OPEN PORTS
+{n:'07',cat:'port',catName:'Open Ports',title:'Find your LISTENING ports',
+task:'Run this command. These are ports OPEN on your machine waiting for connections. How many LISTENING ports do you have?',
+cmd:'netstat -an | find "LISTENING"',
+label:'Number of LISTENING ports',ph:'e.g., 15',
+val:v=>/^\d+$/.test(v.trim()),
+explain:'Every LISTENING port is a door into your computer. Common ones: 135 (RPC), 445 (SMB file sharing), 5040 (Windows services). If you see port 4444 or 5555 LISTENING, that\'s suspicious — those are common malware ports. In a SOC, unexpected LISTENING ports trigger investigation.'},
+
+{n:'08',cat:'port',catName:'Open Ports',title:'Is port 445 (SMB) open?',
+task:'In your netstat output, look for port 445. Is it LISTENING? This is Windows file sharing — also used by WannaCry ransomware.',
+cmd:'netstat -an | find "445"',
+label:'Is port 445 listening? (yes/no)',ph:'yes or no',
+val:v=>/^(yes|no)$/i.test(v.trim()),
+explain:'Port 445 = SMB (Server Message Block) = Windows file sharing. WannaCry ransomware (2017) spread through SMB port 445, infecting 230,000 computers in 150 countries in one day. If port 445 is open AND your firewall allows it from the internet, you are vulnerable. In enterprise networks, SMB should be blocked at the perimeter firewall.'},
+
+// EVENT LOGS
+{n:'09',cat:'log',catName:'Event Logs',title:'Check failed login attempts',
+task:'Run this PowerShell command <b>as Administrator</b> to see failed login attempts on your machine in the last 24 hours.',
+cmd:'powershell -c "Get-WinEvent -FilterHashtable @{LogName=\'Security\';Id=4625} -MaxEvents 5 2>$null | Select TimeCreated,Message | Format-List"',
+label:'Did you find any failed logins? (yes/no/access denied)',ph:'yes, no, or access denied',
+val:v=>v.trim().length>=2,
+explain:'Event ID 4625 = Failed Logon. Every wrong password attempt on your machine is logged here. If you see hundreds of 4625 events from unknown sources, someone is trying to brute-force your login. SOC analysts monitor this event across all machines in the company. This is the SAME type of log you\'d see in a real SIEM (QRadar, Splunk, XSIAM).'},
+
+{n:'10',cat:'log',catName:'Event Logs',title:'When was your last Windows Update?',
+task:'Check when Windows last installed updates. This tells you if your system is patched against known vulnerabilities.',
+cmd:'powershell -c "(Get-HotFix | Sort InstalledOn -Desc | Select -First 1).InstalledOn"',
+label:'Date of last update',ph:'e.g., 5/8/2026 or access denied',
+val:v=>v.trim().length>=3,
+explain:'Unpatched systems are the #1 attack vector. The WannaCry ransomware exploited a Windows vulnerability (MS17-010) that had a patch available for 2 MONTHS before the attack. Organizations that applied the patch were safe. Those that didn\'t lost everything. Patch management = critical security control.'},
+
+// WEB/BROWSER
+{n:'11',cat:'web',catName:'Browser',title:'Inspect a TLS certificate',
+task:'Go to <b>google.com</b> in your browser. Click the <b>lock icon 🔒</b> next to the URL. Click "Connection is secure" → "Certificate". Who ISSUED the certificate?',
+cmd:'(Browser → click 🔒 → Certificate)',
+label:'Certificate issuer name',ph:'e.g., Google Trust Services',
+val:v=>v.trim().length>=3,
+explain:'TLS certificates prove a website is who it says it is. A trusted Certificate Authority (CA) like Google Trust Services, DigiCert, or Let\'s Encrypt issues the cert after verifying the domain owner. If you see a certificate warning, the site might be fake (phishing) or the cert expired. NEVER ignore certificate warnings.'},
+
+{n:'12',cat:'web',catName:'Browser',title:'How many cookies does a site set?',
+task:'Open any news website. Press <b>F12</b> (Developer Tools). Go to <b>Application</b> tab → <b>Cookies</b>. How many cookies are stored?',
+cmd:'(F12 → Application → Cookies)',
+label:'Number of cookies',ph:'e.g., 25',
+val:v=>/^\d+$/.test(v.trim()),
+explain:'Cookies track your activity. First-party cookies (from the site itself) remember your login. Third-party cookies (from ad networks) track you ACROSS websites. Privacy-focused browsers block third-party cookies. In a SOC, malicious cookies can be used for session hijacking — stealing your login session.'},
+
+{n:'13',cat:'web',catName:'Browser',title:'Check your saved passwords',
+task:'In Chrome: Settings → Passwords (or chrome://password-manager). How many passwords does your browser have saved?',
+cmd:'(Chrome Settings → Password Manager)',
+label:'Number of saved passwords',ph:'e.g., 45 or 0',
+val:v=>/^\d+$/.test(v.trim()),
+explain:'Browser-saved passwords are convenient but RISKY. Malware like RedLine Stealer specifically targets browser password stores — it extracts ALL saved passwords in seconds. Security recommendation: use a dedicated password manager (Bitwarden, 1Password) instead of browser storage. If you have passwords saved in Chrome, consider moving them.'},
+
+{n:'14',cat:'web',catName:'Browser',title:'How many extensions do you have?',
+task:'In Chrome: go to <b>chrome://extensions</b>. Count your extensions. Do you recognize ALL of them?',
+cmd:'(Type chrome://extensions in address bar)',
+label:'Number of extensions',ph:'e.g., 5',
+val:v=>/^\d+$/.test(v.trim()),
+explain:'Browser extensions have access to EVERYTHING you do in the browser — every page, every password, every form. Malicious extensions steal data, inject ads, or redirect searches. Review each extension: do you recognize it? Did you install it? Does it need the permissions it has? Remove anything you don\'t actively use.'},
+
+// HASHING
+{n:'15',cat:'hash',catName:'Hashing',title:'Hash the Windows calculator',
+task:'Run this command to calculate the SHA-256 hash of calc.exe. This hash is the file\'s unique fingerprint.',
+cmd:'certutil -hashfile C:\\Windows\\System32\\calc.exe SHA256',
+label:'First 8 characters of the hash',ph:'e.g., a1b2c3d4',
+val:v=>/^[a-fA-F0-9]{8}$/.test(v.trim()),
+explain:'Every file has a unique hash. If even ONE byte changes, the entire hash changes. This is how antivirus and security tools detect tampered files. You can upload a hash to VirusTotal.com to check if a file is known malware. In forensics, hashes prove evidence hasn\'t been modified.'},
+
+{n:'16',cat:'hash',catName:'Hashing',title:'Verify a hash on VirusTotal',
+task:'Copy the FULL hash from Mission 15. Go to <b>virustotal.com</b>. Click "Search" and paste the hash. Is calc.exe detected as malware?',
+cmd:'(Browser: virustotal.com → Search → paste hash)',
+label:'Number of detections (should be 0)',ph:'e.g., 0',
+val:v=>/^\d+$/.test(v.trim()),
+explain:'VirusTotal scans files against 70+ antivirus engines. 0 detections = clean file. If you find a suspicious file on a machine, hash it and check VirusTotal BEFORE opening it. This is standard SOC procedure — hash first, ask questions later. You just did what a real analyst does every day.'},
+
+// OSINT
+{n:'17',cat:'osint',catName:'OSINT',title:'Google yourself',
+task:'Search your full name on Google (in quotes: "First Last"). How many results mention you? What personal info is publicly visible?',
+cmd:'(Google: "Your Full Name")',
+label:'Approximate number of results',ph:'e.g., 500 or 0',
+val:v=>/^\d+$/.test(v.trim()),
+explain:'This is OSINT (Open Source Intelligence) — finding information from public sources. Attackers do this BEFORE targeting you. They find your name, employer, social media, email, interests, and use this for spear-phishing. The less you have publicly visible, the harder you are to target. Review and clean up your digital footprint.'},
+
+{n:'18',cat:'osint',catName:'OSINT',title:'What does your email leak?',
+task:'Go to <b>epieos.com</b>. Enter your email address. What services/accounts are linked to your email?',
+cmd:'(Browser: epieos.com)',
+label:'How many services found?',ph:'e.g., 3 or 0',
+val:v=>/^\d+$/.test(v.trim()),
+explain:'OSINT tools can discover which services you\'re registered on using just your email. Attackers use this to find accounts to target. If they know you have a LinkedIn, they send LinkedIn phishing. If they find your Instagram, they gather personal info for social engineering. Use unique emails or aliases for sensitive accounts.'},
+
+{n:'19',cat:'osint',catName:'OSINT',title:'Check your public IP reputation',
+task:'Go to <b>abuseipdb.com</b>. It auto-detects your public IP. Has your IP been reported for abuse?',
+cmd:'(Browser: abuseipdb.com)',
+label:'Abuse confidence score (%)',ph:'e.g., 0',
+val:v=>/^\d+$/.test(v.trim()),
+explain:'AbuseIPDB tracks IP addresses reported for malicious activity (spam, brute force, scanning). If your home IP has reports, it could mean: (1) someone on your network is infected with malware, (2) a previous user of this IP was malicious, or (3) your ISP recycles IPs. SOC analysts check EVERY suspicious IP against AbuseIPDB and VirusTotal.'},
+
+{n:'20',cat:'osint',catName:'OSINT',title:'Scan a website for security headers',
+task:'Go to <b>securityheaders.com</b>. Enter any website URL (e.g., google.com). What GRADE does it get?',
+cmd:'(Browser: securityheaders.com)',
+label:'Grade (A+ to F)',ph:'e.g., A or D',
+val:v=>/^[A-Fa-f][+]?$/.test(v.trim()),
+explain:'Security headers tell the browser how to behave securely. Headers like Content-Security-Policy, X-Frame-Options, and Strict-Transport-Security prevent XSS, clickjacking, and downgrade attacks. Most large sites (Google, Microsoft) get A or A+. Try scanning smaller websites — many get D or F because they don\'t set security headers. This is a real vulnerability assessment technique.'},
+];
+
+let completed=new Set();
+function render(){
+  document.getElementById('score').textContent=completed.size+'/'+M.length;
+  document.getElementById('prog').style.width=(completed.size/M.length*100)+'%';
+  document.getElementById('hdr-status').textContent=completed.size+'/'+M.length;
+  document.getElementById('missions').innerHTML=M.map((m,i)=>{
+    const done=completed.has(i);
+    return`<div class="mission">
+    <div class="m-hdr" onclick="document.getElementById('mb-${i}').classList.toggle('open')">
+    <span class="m-num">${m.n}</span>
+    <span class="m-cat cat-${m.cat}">${m.catName}</span>
+    <span class="m-title">${m.title}</span>
+    <span class="m-check">${done?'✅':'⬜'}</span>
+    </div>
+    <div class="m-body${i===0&&!done?' open':''}" id="mb-${i}">
+    <div class="m-task">${m.task}</div>
+    <div class="cmd-box">
+    <div class="cmd-label">Command / Action</div>
+    <div class="cmd-text" onclick="navigator.clipboard.writeText(this.textContent)">${m.cmd}</div>
+    <div class="cmd-note">Click command to copy</div></div>
+    <div class="ans-label">${m.label}</div>
+    <div class="ans-row">
+    <input class="ans-input${done?' done':''}" id="ans-${i}" placeholder="${m.ph}" ${done?'disabled value="✓"':''}/>
+    ${done?'':`<button class="ans-btn" onclick="submit(${i})">Submit</button>`}
+    </div>
+    <div class="m-hint" onclick="document.getElementById('exp-${i}').classList.toggle('show')">${done?'📖 Explanation':'💡 Why this matters'}</div>
+    <div class="m-explain${done?' show':''}" id="exp-${i}">${m.explain}</div>
+    </div></div>`;
+  }).join('');
+}
+function submit(i){
+  const v=document.getElementById('ans-'+i).value;
+  if(M[i].val(v)){completed.add(i);render();}
+  else{const el=document.getElementById('ans-'+i);el.style.borderColor='#ff6b6b';setTimeout(()=>el.style.borderColor='#1a1a2e',1000);}
+}
+render();
+</script>
+</body></html>

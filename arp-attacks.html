@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>ARP Attacks — Deep Dive</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;700&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;background:#060610;font-family:'Outfit',sans-serif;color:#e0e0e0}
+header{height:44px;background:#10101a;border-bottom:1px solid #1a1a2e;display:flex;align-items:center;padding:0 14px}
+header h1{font-size:15px;font-weight:900}header h1 span{color:#fbbf24}
+.tabs{display:flex;gap:3px;margin-left:auto}
+.tab{padding:4px 10px;border-radius:5px;font-size:9px;font-weight:700;cursor:pointer;border:1.5px solid #1a1a2e;background:transparent;color:#555;font-family:'Outfit'}
+.tab:hover{border-color:#fbbf24;color:#fbbf24}.tab.on{border-color:#fbbf24;color:#fbbf24;background:rgba(251,191,36,.06)}
+.container{max-width:750px;margin:0 auto;padding:16px}
+.sec{display:none}.sec.on{display:block}
+
+/* Diagram */
+.diagram{background:#0a0a16;border:2px solid #1a1a2e;border-radius:14px;padding:20px;margin-bottom:12px;position:relative}
+.d-title{font-size:10px;font-weight:700;color:#fbbf24;text-transform:uppercase;letter-spacing:2px;text-align:center;margin-bottom:14px}
+.row{display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:10px;flex-wrap:wrap;min-height:60px}
+.entity{display:flex;flex-direction:column;align-items:center;padding:8px 10px;border-radius:10px;border:2px solid #2a2a3e;background:#10101a;min-width:68px;transition:all .3s}
+.entity.hl{border-color:#fbbf24;background:rgba(251,191,36,.04);box-shadow:0 0 16px rgba(251,191,36,.1)}
+.entity.bad{border-color:rgba(255,107,107,.3);background:rgba(255,107,107,.04)}
+.entity.bad.hl{border-color:#ff6b6b;box-shadow:0 0 16px rgba(255,107,107,.15)}
+.entity.good{border-color:rgba(74,222,128,.2)}
+.e-icon{font-size:26px;margin-bottom:2px}.e-name{font-size:8px;font-weight:700;color:#888;text-align:center}.e-ip{font-family:'IBM Plex Mono';font-size:7px;color:#444;margin-top:1px;text-align:center}.e-mac{font-family:'IBM Plex Mono';font-size:7px;color:#333;text-align:center}
+.arrow{font-size:18px;color:#2a2a3e;flex-shrink:0}.arrow.atk{color:#ff6b6b;animation:atkPulse 1s infinite}.arrow.ok{color:#4ade80}
+@keyframes atkPulse{0%,100%{opacity:1}50%{opacity:.3}}
+.pkt{display:inline-block;padding:4px 10px;border-radius:6px;font-family:'IBM Plex Mono';font-size:10px;font-weight:700;animation:pktFloat 2s infinite;margin:6px auto;text-align:center}
+.pkt-ok{background:rgba(74,222,128,.1);color:#4ade80;border:1px solid rgba(74,222,128,.15)}
+.pkt-bad{background:rgba(255,107,107,.1);color:#ff6b6b;border:1px solid rgba(255,107,107,.15)}
+.pkt-info{background:rgba(56,189,248,.1);color:#38bdf8;border:1px solid rgba(56,189,248,.15)}
+@keyframes pktFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+
+/* ARP table */
+.arp-table{background:#0a0a14;border:1px solid #1a1a2e;border-radius:8px;padding:10px;margin:10px 0;font-family:'IBM Plex Mono';font-size:10px}
+.arp-table-title{font-size:9px;font-weight:700;color:#fbbf24;margin-bottom:6px;letter-spacing:1px}
+.arp-row{display:flex;padding:3px 0;border-bottom:1px solid #0d0d18;gap:12px}
+.arp-row:last-child{border:none}
+.arp-ip{color:#38bdf8;width:120px}.arp-mac{color:#888;width:140px}.arp-status{font-weight:700;flex:1;text-align:right}
+.arp-ok{color:#4ade80}.arp-poison{color:#ff6b6b}
+
+/* Step card */
+.step-card{background:#10101a;border:2px solid #1a1a2e;border-radius:12px;padding:16px;margin-bottom:12px}
+.step-num{font-family:'IBM Plex Mono';font-size:10px;color:#fbbf24;margin-bottom:4px}
+.step-title{font-size:16px;font-weight:800;color:#f0f0f0;margin-bottom:6px}
+.step-detail{font-size:12px;color:#888;line-height:1.8}
+.step-detail b{color:#f0f0f0}
+
+.defense{background:rgba(74,222,128,.04);border:1px solid rgba(74,222,128,.1);border-radius:8px;padding:10px;font-size:11px;color:#4ade80;line-height:1.7;margin-bottom:12px}
+
+.nav{display:flex;gap:8px;justify-content:center;margin-bottom:12px}
+.nav-btn{padding:8px 24px;border-radius:99px;border:1.5px solid #2a2a3e;background:transparent;color:#888;font-size:12px;font-weight:700;cursor:pointer;font-family:'Outfit'}
+.nav-btn:hover{border-color:#fbbf24;color:#fbbf24}
+.nav-btn.primary{border-color:#fbbf24;color:#fbbf24}
+.dots{display:flex;gap:4px;justify-content:center;margin-bottom:8px}
+.dot{width:18px;height:4px;border-radius:2px;background:#1a1a2e}.dot.done{background:#fbbf24}.dot.on{background:#ff6b6b}
+</style>
+</head>
+<body>
+<header><h1>ARP <span>Attacks</span> — Deep Dive</h1>
+<div class="tabs">
+<div class="tab on" onclick="goSec(0)">How ARP Works</div>
+<div class="tab" onclick="goSec(1)">ARP Spoofing</div>
+<div class="tab" onclick="goSec(2)">ARP Flood</div>
+<div class="tab" onclick="goSec(3)">Defenses</div>
+</div></header>
+<div class="container">
+<div class="sec on" id="s0"></div>
+<div class="sec" id="s1"></div>
+<div class="sec" id="s2"></div>
+<div class="sec" id="s3"></div>
+</div>
+<script>
+function goSec(n){document.querySelectorAll('.sec').forEach((s,i)=>s.classList.toggle('on',i===n));document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('on',i===n));loadSection(n);}
+
+const SECTIONS=[
+// HOW ARP WORKS
+[
+{title:'Why ARP Exists',detail:'Every device on a network has TWO addresses:<br>• <b>IP address</b> (Layer 3) — used by routers to forward packets between networks<br>• <b>MAC address</b> (Layer 2) — used by switches to deliver frames on the LOCAL network<br><br>Problem: your computer knows the destination IP (e.g., 192.168.1.1) but the switch needs the MAC address to deliver the frame. <b>ARP bridges this gap</b> — it translates IP → MAC.',
+diagram:`<div class="row">
+<div class="entity good"><div class="e-icon">💻</div><div class="e-name">PC-A</div><div class="e-ip">IP: 192.168.1.50</div><div class="e-mac">MAC: AA:11:22:33:44:55</div></div>
+<div class="arrow">❓</div>
+<div class="entity"><div class="e-icon">🔀</div><div class="e-name">Switch</div><div class="e-ip">Needs MAC to forward!</div></div>
+<div class="arrow">❓</div>
+<div class="entity good"><div class="e-icon">📡</div><div class="e-name">Router</div><div class="e-ip">IP: 192.168.1.1</div><div class="e-mac">MAC: BB:22:33:44:55:66</div></div>
+</div>
+<div style="text-align:center"><div class="pkt pkt-info">PC-A knows the IP but NOT the MAC → needs ARP!</div></div>`},
+
+{title:'Step 1: ARP Request (Broadcast)',detail:'PC-A sends an <b>ARP Request</b> as a BROADCAST (destination MAC = FF:FF:FF:FF:FF:FF). This means <b>EVERY device on the network</b> receives it.<br><br>The request says: <b>"Who has IP 192.168.1.1? Tell 192.168.1.50"</b><br><br>This is like shouting in a room: "Who is 192.168.1.1? Raise your hand!"',
+diagram:`<div class="row">
+<div class="entity hl"><div class="e-icon">💻</div><div class="e-name">PC-A</div><div class="e-ip">192.168.1.50</div></div>
+<div class="arrow ok">📢</div>
+<div class="entity"><div class="e-icon">🔀</div><div class="e-name">Switch</div><div class="e-ip">Floods to ALL ports</div></div>
+<div class="arrow ok">📢</div>
+<div class="entity"><div class="e-icon">📡</div><div class="e-name">Router</div><div class="e-ip">192.168.1.1</div></div>
+</div>
+<div style="text-align:center"><div class="pkt pkt-info">ARP Request: "Who has 192.168.1.1? Tell AA:11:22:33:44:55"</div></div>
+<div class="row" style="opacity:.5">
+<div class="entity" style="border-style:dashed"><div class="e-icon">💻</div><div class="e-name">PC-B</div><div class="e-ip">Hears it but ignores (not my IP)</div></div>
+<div class="entity" style="border-style:dashed"><div class="e-icon">💻</div><div class="e-name">PC-C</div><div class="e-ip">Hears it but ignores</div></div>
+</div>`},
+
+{title:'Step 2: ARP Reply (Unicast)',detail:'The router recognizes its own IP (192.168.1.1) and sends an <b>ARP Reply</b> directly to PC-A (unicast, not broadcast):<br><br><b>"192.168.1.1 is at MAC BB:22:33:44:55:66"</b><br><br>PC-A saves this in its <b>ARP cache</b> (temporary table). Now it knows the MAC and can send frames.',
+diagram:`<div class="row">
+<div class="entity hl"><div class="e-icon">💻</div><div class="e-name">PC-A</div><div class="e-ip">Saves to ARP table ✓</div></div>
+<div class="arrow ok">←</div>
+<div class="entity"><div class="e-icon">🔀</div><div class="e-name">Switch</div></div>
+<div class="arrow ok">←</div>
+<div class="entity good hl"><div class="e-icon">📡</div><div class="e-name">Router</div><div class="e-ip">192.168.1.1</div><div class="e-mac">MAC: BB:22:33:44:55:66</div></div>
+</div>
+<div style="text-align:center"><div class="pkt pkt-ok">ARP Reply: "192.168.1.1 is at BB:22:33:44:55:66" ✓</div></div>
+<div class="arp-table"><div class="arp-table-title">PC-A's ARP Table (after learning)</div>
+<div class="arp-row"><div class="arp-ip">192.168.1.1</div><div class="arp-mac">BB:22:33:44:55:66</div><div class="arp-status arp-ok">✓ Correct</div></div></div>`},
+
+{title:'Step 3: Communication Begins',detail:'Now PC-A can communicate with the router. It creates an Ethernet frame with:<br>• <b>Source MAC:</b> AA:11:22:33:44:55 (PC-A)<br>• <b>Destination MAC:</b> BB:22:33:44:55:66 (Router)<br>• <b>Payload:</b> The IP packet inside<br><br>The switch reads the destination MAC and forwards the frame to the router\'s port. <b>This is how Layer 2 and Layer 3 work together.</b>',
+diagram:`<div class="row">
+<div class="entity good"><div class="e-icon">💻</div><div class="e-name">PC-A</div></div>
+<div class="arrow ok">→</div>
+<div class="entity"><div class="e-icon">🔀</div><div class="e-name">Switch</div><div class="e-ip">Reads dest MAC → forwards to correct port</div></div>
+<div class="arrow ok">→</div>
+<div class="entity good"><div class="e-icon">📡</div><div class="e-name">Router</div></div>
+</div>
+<div style="text-align:center"><div class="pkt pkt-ok">Frame: src=AA:11 → dst=BB:22 | IP packet inside</div></div>`},
+
+{title:'The Vulnerability: ARP Has ZERO Authentication',detail:'<b>Critical flaw:</b> ARP was designed in 1982 with NO security. There is:<br><br>• ❌ No way to verify who sent an ARP reply<br>• ❌ No authentication — any device can claim to be any IP<br>• ❌ Devices accept ARP replies they NEVER asked for (gratuitous ARP)<br>• ❌ New replies OVERWRITE old entries — no confirmation needed<br><br>This means: <b>ANY device on the network can lie about who it is, and everyone will believe it.</b>',
+diagram:`<div class="row">
+<div class="entity"><div class="e-icon">💻</div><div class="e-name">Victim PC</div><div class="e-ip">Trusts ALL ARP replies</div></div>
+<div class="arrow atk">⚠️</div>
+<div class="entity bad"><div class="e-icon">💀</div><div class="e-name">Attacker</div><div class="e-ip">Can claim ANY IP</div></div>
+<div class="arrow atk">⚠️</div>
+<div class="entity"><div class="e-icon">📡</div><div class="e-name">Router</div><div class="e-ip">Also trusts ALL replies</div></div>
+</div>
+<div style="text-align:center"><div class="pkt pkt-bad">No verification. No authentication. No protection.</div></div>`},
+],
+// ARP SPOOFING
+[
+{title:'ARP Spoofing — The Attack Begins',detail:'The attacker connects to the same network as the victim. They run a tool like <b>arpspoof</b> or <b>bettercap</b>. The tool sends two continuous streams of FAKE ARP replies:<br><br>1. <b>To the victim:</b> "192.168.1.1 (router) is at [ATTACKER MAC]"<br>2. <b>To the router:</b> "192.168.1.50 (victim) is at [ATTACKER MAC]"<br><br>Both the victim AND the router update their ARP tables with the attacker\'s MAC.',
+diagram:`<div class="row">
+<div class="entity"><div class="e-icon">💻</div><div class="e-name">Victim</div><div class="e-ip">192.168.1.50</div></div>
+<div class="arrow atk">←💀</div>
+<div class="entity bad hl"><div class="e-icon">💀</div><div class="e-name">Attacker</div><div class="e-ip">MAC: XX:YY:ZZ</div><div class="e-mac">Sends FAKE ARP to both sides</div></div>
+<div class="arrow atk">💀→</div>
+<div class="entity"><div class="e-icon">📡</div><div class="e-name">Router</div><div class="e-ip">192.168.1.1</div></div>
+</div>
+<div style="text-align:center"><div class="pkt pkt-bad">FAKE: "Router is at XX:YY:ZZ" AND "Victim is at XX:YY:ZZ"</div></div>
+<div class="arp-table"><div class="arp-table-title">Victim's ARP Table (POISONED)</div>
+<div class="arp-row"><div class="arp-ip">192.168.1.1 (Router)</div><div class="arp-mac">XX:YY:ZZ:AA:BB:CC</div><div class="arp-status arp-poison">✗ FAKE — Attacker's MAC!</div></div></div>
+<div class="arp-table"><div class="arp-table-title">Router's ARP Table (POISONED)</div>
+<div class="arp-row"><div class="arp-ip">192.168.1.50 (Victim)</div><div class="arp-mac">XX:YY:ZZ:AA:BB:CC</div><div class="arp-status arp-poison">✗ FAKE — Attacker's MAC!</div></div></div>`},
+
+{title:'ALL Traffic Now Flows Through the Attacker',detail:'The victim thinks the attacker IS the router. The router thinks the attacker IS the victim.<br><br><b>Traffic flow:</b> Victim → Attacker → Router → Internet → Router → Attacker → Victim<br><br>The attacker enables IP forwarding so traffic reaches its real destination — <b>the victim notices NOTHING unusual.</b> But the attacker sees EVERYTHING.',
+diagram:`<div class="row">
+<div class="entity"><div class="e-icon">💻</div><div class="e-name">Victim</div><div class="e-ip">"Sending to router..."</div></div>
+<div class="arrow atk">→</div>
+<div class="entity bad hl"><div class="e-icon">💀</div><div class="e-name">ATTACKER</div><div class="e-ip">Reads ALL data</div><div class="e-mac">Then forwards it</div></div>
+<div class="arrow atk">→</div>
+<div class="entity"><div class="e-icon">📡</div><div class="e-name">Router</div><div class="e-ip">"Sending to victim..."</div></div>
+</div>
+<div style="text-align:center"><div class="pkt pkt-bad">Attacker reads: passwords, emails, searches, credit cards</div></div>`},
+
+{title:'What the Attacker Can Do (Man-in-the-Middle)',detail:'Once in the middle, the attacker can:<br><br>• 👁️ <b>Sniff traffic</b> — read passwords, emails, HTTP content<br>• ✏️ <b>Modify traffic</b> — inject malicious code into HTTP pages, change download links<br>• 🚫 <b>Drop traffic</b> — selectively block certain websites or services<br>• 🔑 <b>Steal sessions</b> — capture session cookies to hijack logged-in accounts<br>• 📡 <b>Downgrade attacks</b> — force HTTPS connections back to HTTP (SSLstrip)<br><br><b>On HTTPS:</b> attacker sees encrypted traffic but CANNOT read it. However, SSLstrip can trick victims into using HTTP if the site doesn\'t enforce HSTS.',
+diagram:`<div class="row">
+<div class="entity"><div class="e-icon">💻</div><div class="e-name">Victim</div></div>
+<div class="arrow atk">→</div>
+<div class="entity bad hl"><div class="e-icon">💀</div><div class="e-name">ATTACKER</div></div>
+<div class="arrow atk">→</div>
+<div class="entity"><div class="e-icon">📡</div><div class="e-name">Router</div></div>
+</div>
+<div class="row" style="justify-content:center;gap:8px;margin-top:6px">
+<div class="pkt pkt-bad">👁️ Sniff</div>
+<div class="pkt pkt-bad">✏️ Modify</div>
+<div class="pkt pkt-bad">🚫 Drop</div>
+<div class="pkt pkt-bad">🔑 Steal</div>
+</div>`},
+
+{title:'How to DETECT ARP Spoofing',detail:'<b>Signs of ARP spoofing on your network:</b><br><br>1. <b>Duplicate MACs</b> — run "arp -a" and check if two IPs share the same MAC<br>2. <b>Gateway MAC changed</b> — your router\'s MAC suddenly becomes different<br>3. <b>Network slowdown</b> — traffic routing through the attacker adds latency<br>4. <b>ARP storm</b> — unusually high number of ARP packets on the network<br>5. <b>SSL/TLS warnings</b> — attacker\'s fake certificates trigger browser warnings<br><br><b>Detection command:</b> <code>arp -a</code> → look for duplicate Physical Addresses',
+diagram:`<div class="arp-table"><div class="arp-table-title">CLEAN ARP Table</div>
+<div class="arp-row"><div class="arp-ip">192.168.1.1</div><div class="arp-mac">BB:22:33:44:55:66</div><div class="arp-status arp-ok">✓ Router</div></div>
+<div class="arp-row"><div class="arp-ip">192.168.1.50</div><div class="arp-mac">AA:11:22:33:44:55</div><div class="arp-status arp-ok">✓ Unique</div></div></div>
+<div class="arp-table"><div class="arp-table-title">POISONED ARP Table — DUPLICATE MAC! 🚨</div>
+<div class="arp-row"><div class="arp-ip">192.168.1.1</div><div class="arp-mac">XX:YY:ZZ:AA:BB:CC</div><div class="arp-status arp-poison">✗ Attacker!</div></div>
+<div class="arp-row"><div class="arp-ip">192.168.1.50</div><div class="arp-mac">AA:11:22:33:44:55</div><div class="arp-status arp-ok">✓ Real</div></div>
+<div class="arp-row"><div class="arp-ip">192.168.1.99</div><div class="arp-mac">XX:YY:ZZ:AA:BB:CC</div><div class="arp-status arp-poison">✗ SAME MAC as .1! Attacker!</div></div></div>`},
+],
+// ARP FLOOD
+[
+{title:'ARP Flood / CAM Table Overflow',detail:'A different ARP attack that targets the <b>switch</b> instead of the victim.<br><br><b>How it works:</b><br>1. The attacker generates thousands of ARP packets with <b>random fake MAC addresses</b><br>2. The switch tries to learn each MAC and save it in its <b>CAM table</b> (Content Addressable Memory)<br>3. The CAM table has a limited size (typically 8,000-32,000 entries)<br>4. When the table is FULL, the switch can no longer learn new MACs<br>5. The switch falls back to <b>FLOODING</b> — sending every frame to every port<br>6. The switch now behaves like a <b>HUB</b> — the attacker can sniff ALL traffic on ALL ports<br><br>Tool: <b>macof</b> (can generate 155,000 fake MAC entries per minute)',
+diagram:`<div class="row">
+<div class="entity bad hl"><div class="e-icon">💀</div><div class="e-name">Attacker</div><div class="e-ip">macof running</div></div>
+<div class="arrow atk">💥💥💥</div>
+<div class="entity hl"><div class="e-icon">🔀</div><div class="e-name">Switch</div><div class="e-ip">CAM table: FULL!</div><div class="e-mac">Now floods like a hub</div></div>
+<div class="arrow atk">📢📢📢</div>
+<div class="entity"><div class="e-icon">💻💻💻</div><div class="e-name">All PCs</div><div class="e-ip">Receive ALL traffic</div></div>
+</div>
+<div style="text-align:center"><div class="pkt pkt-bad">Switch overflowed → floods everything → attacker sees ALL traffic</div></div>`},
+
+{title:'Before vs After — Switch Behavior',detail:'<b>Normal switch (CAM table working):</b><br>• Frame arrives for MAC BB:22 → switch looks up table → forwards only to port 3<br>• Other ports see NOTHING — traffic is private<br><br><b>Overflowed switch (CAM table full):</b><br>• Frame arrives for MAC BB:22 → table full, cannot find entry → FLOODS to ALL ports<br>• Every device on every port receives every frame<br>• Attacker can now capture everything with Wireshark<br><br>This is why it\'s called a "hub attack" — the smart switch becomes a dumb hub.',
+diagram:`<div class="row"><div style="text-align:center;flex:1">
+<div style="font-size:11px;font-weight:700;color:#4ade80;margin-bottom:8px">✓ NORMAL SWITCH</div>
+<div class="row">
+<div class="entity good"><div class="e-icon">💻</div><div class="e-name">PC-A</div></div>
+<div class="arrow ok">→ Port 3 only</div>
+<div class="entity good"><div class="e-icon">💻</div><div class="e-name">PC-B</div></div>
+</div>
+</div></div>
+<div class="row"><div style="text-align:center;flex:1">
+<div style="font-size:11px;font-weight:700;color:#ff6b6b;margin-bottom:8px">✗ OVERFLOWED SWITCH (behaves like HUB)</div>
+<div class="row">
+<div class="entity"><div class="e-icon">💻</div><div class="e-name">PC-A</div></div>
+<div class="arrow atk">→ ALL PORTS</div>
+<div class="entity"><div class="e-icon">💻</div><div class="e-name">PC-B</div></div>
+<div class="arrow atk">→</div>
+<div class="entity bad"><div class="e-icon">💀</div><div class="e-name">Attacker</div><div class="e-ip">Sees everything</div></div>
+</div>
+</div></div>`},
+],
+// DEFENSES
+[
+{title:'Defense 1: Dynamic ARP Inspection (DAI)',detail:'<b>DAI</b> runs on managed switches. It works WITH DHCP snooping:<br><br>1. DHCP snooping builds a trusted database: "MAC AA:11 was assigned IP 192.168.1.50"<br>2. When an ARP packet arrives, DAI checks: "Does the MAC-IP mapping match the DHCP snooping database?"<br>3. If the ARP reply says "192.168.1.1 is at XX:YY:ZZ" but DHCP never assigned 192.168.1.1 to XX:YY:ZZ → <b>DROP the packet</b><br>4. Fake ARP replies are blocked before they reach any device<br><br><b>This is the #1 defense against ARP spoofing in enterprise networks.</b>',
+diagram:`<div class="row">
+<div class="entity bad"><div class="e-icon">💀</div><div class="e-name">Attacker</div><div class="e-ip">Fake ARP Reply</div></div>
+<div class="arrow atk">→</div>
+<div class="entity good hl"><div class="e-icon">🔀</div><div class="e-name">Switch (DAI ON)</div><div class="e-ip">Checks DHCP database</div><div class="e-mac">MAC-IP mismatch → DROP!</div></div>
+<div class="arrow">✗</div>
+<div class="entity good"><div class="e-icon">💻</div><div class="e-name">Victim</div><div class="e-ip">Never sees fake ARP</div></div>
+</div>
+<div style="text-align:center"><div class="pkt pkt-ok">DAI blocks ALL fake ARP packets before they reach victims</div></div>`},
+
+{title:'Defense 2: Static ARP + Port Security + 802.1X',detail:'<b>Static ARP entries:</b> Manually configure the router MAC on critical devices: <code>arp -s 192.168.1.1 BB:22:33:44:55:66</code>. Static entries CANNOT be overwritten by ARP replies. Downside: doesn\'t scale — impractical for hundreds of devices.<br><br><b>Port Security:</b> Limit the number of MAC addresses per switch port (e.g., max 1 MAC per port). Prevents ARP flood by blocking ports with excessive MACs.<br><br><b>802.1X:</b> Requires devices to authenticate (username/password or certificate) BEFORE the switch allows ANY traffic. Unauthorized devices cannot even send ARP packets.',
+diagram:`<div class="row">
+<div class="entity good"><div class="e-icon">🔑</div><div class="e-name">802.1X Auth</div><div class="e-ip">Authenticate first!</div></div>
+<div class="arrow ok">→</div>
+<div class="entity good"><div class="e-icon">🔀</div><div class="e-name">Switch</div><div class="e-ip">Port Security: Max 1 MAC</div></div>
+<div class="arrow ok">→</div>
+<div class="entity good"><div class="e-icon">📡</div><div class="e-name">Router</div><div class="e-ip">Static ARP entry</div></div>
+</div>
+<div style="text-align:center"><div class="pkt pkt-ok">Multiple layers of defense = attacker blocked at every step</div></div>`},
+],
+];
+
+let stepIdx=[0,0,0,0];
+
+function loadSection(n){
+  const steps=SECTIONS[n];
+  const si=stepIdx[n];
+  const s=steps[si];
+  
+  document.getElementById('s'+n).innerHTML=`
+  ${s.diagram}
+  <div class="step-card">
+  <div class="step-num">STEP ${si+1} OF ${steps.length}</div>
+  <div class="step-title">${s.title}</div>
+  <div class="step-detail">${s.detail}</div>
+  </div>
+  <div class="dots">${steps.map((_,i)=>`<div class="dot${i<si?' done':''}${i===si?' on':''}"></div>`).join('')}</div>
+  <div class="nav">
+  <div class="nav-btn" onclick="prevS(${n})">← Back</div>
+  <div class="nav-btn primary" onclick="nextS(${n})">Next →</div>
+  </div>`;
+}
+
+function nextS(n){if(stepIdx[n]<SECTIONS[n].length-1){stepIdx[n]++;loadSection(n);}}
+function prevS(n){if(stepIdx[n]>0){stepIdx[n]--;loadSection(n);}}
+
+document.addEventListener('keydown',e=>{
+  const active=[...document.querySelectorAll('.sec')].findIndex(s=>s.classList.contains('on'));
+  if(e.key==='ArrowRight'||e.key===' ')nextS(active);
+  if(e.key==='ArrowLeft')prevS(active);
+});
+
+loadSection(0);
+</script>
+</body></html>

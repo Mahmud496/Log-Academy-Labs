@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Networking Jeopardy — Round 2</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;700&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;background:#0a0a14;font-family:'Outfit',sans-serif;color:#e0e0e0}
+.hud{height:50px;background:#12121e;border-bottom:2px solid #2a2a3e;display:flex;align-items:center;padding:0 16px;gap:20px}
+.hud-title{font-size:18px;font-weight:900;color:#fbbf24}
+.teams{display:flex;gap:12px;margin-left:auto}
+.team{padding:6px 16px;border-radius:8px;font-family:'IBM Plex Mono';font-size:13px;font-weight:700;border:2px solid #2a2a3e;cursor:pointer;transition:all .12s}
+.team:hover{border-color:#fbbf24}
+.t1{color:#38bdf8}.t2{color:#4ade80}.t3{color:#f472b6}.t4{color:#fb923c}
+.container{max-width:900px;margin:0 auto;padding:16px}
+.board{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-bottom:16px}
+.cat-header{background:#1a1a3e;border:2px solid #2a2a3e;border-radius:8px;padding:12px 6px;text-align:center;font-size:10px;font-weight:800;color:#fbbf24;text-transform:uppercase;letter-spacing:1px}
+.cell{background:#12121e;border:2px solid #2a2a3e;border-radius:8px;padding:16px 8px;text-align:center;cursor:pointer;transition:all .15s;font-family:'IBM Plex Mono';font-size:20px;font-weight:900;color:#fbbf24}
+.cell:hover:not(.used){border-color:#fbbf24;background:#1a1a2e;transform:scale(1.05)}
+.cell.used{opacity:.15;cursor:default;color:#333}
+.q-overlay{position:fixed;inset:0;background:rgba(10,10,20,.95);display:none;align-items:center;justify-content:center;z-index:100;padding:20px}
+.q-overlay.on{display:flex}
+.q-box{max-width:600px;width:100%;text-align:center}
+.q-cat{font-size:12px;font-weight:700;color:#fbbf24;letter-spacing:3px;text-transform:uppercase;margin-bottom:8px}
+.q-pts{font-family:'IBM Plex Mono';font-size:48px;font-weight:900;color:#fbbf24;margin-bottom:16px}
+.q-text{font-size:20px;font-weight:700;color:#f0f0f0;line-height:1.5;margin-bottom:24px;min-height:80px}
+.q-answer{font-size:16px;color:#4ade80;margin-bottom:20px;display:none;padding:16px;background:rgba(74,222,128,.06);border:1px solid rgba(74,222,128,.1);border-radius:10px;text-align:left;line-height:1.6}
+.q-btns{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+.q-btn{padding:10px 24px;border-radius:99px;border:2px solid #2a2a3e;background:transparent;cursor:pointer;font-size:13px;font-weight:700;font-family:'Outfit';transition:all .12s;color:#888}
+.q-btn:hover{border-color:#fbbf24;color:#fbbf24}
+.q-btn.reveal{border-color:#4ade80;color:#4ade80}
+.q-btn.close{border-color:#555;color:#888}
+.scoreboard{display:flex;gap:8px;justify-content:center}
+.sb-team{flex:1;max-width:200px;background:#12121e;border:2px solid #2a2a3e;border-radius:10px;padding:12px;text-align:center}
+.sb-name{font-size:12px;font-weight:700;margin-bottom:4px}
+.sb-score{font-family:'IBM Plex Mono';font-size:24px;font-weight:900}
+.sb-t1 .sb-name{color:#38bdf8}.sb-t1 .sb-score{color:#38bdf8}
+.sb-t2 .sb-name{color:#4ade80}.sb-t2 .sb-score{color:#4ade80}
+.sb-t3 .sb-name{color:#f472b6}.sb-t3 .sb-score{color:#f472b6}
+.sb-t4 .sb-name{color:#fb923c}.sb-t4 .sb-score{color:#fb923c}
+</style>
+</head>
+<body>
+<div class="hud">
+<div class="hud-title">📡 NETWORKING JEOPARDY — ROUND 2</div>
+<div class="teams" id="teams"></div>
+</div>
+<div class="container">
+<div class="board" id="board"></div>
+<div class="scoreboard" id="scoreboard"></div>
+</div>
+<div class="q-overlay" id="qoverlay">
+<div class="q-box">
+<div class="q-cat" id="q-cat"></div>
+<div class="q-pts" id="q-pts"></div>
+<div class="q-text" id="q-text"></div>
+<div class="q-answer" id="q-answer"></div>
+<div class="q-btns" id="q-btns"></div>
+</div>
+</div>
+<script>
+const CATEGORIES=[
+{name:'OSI Model',qs:[
+{q:'Name the 7 OSI layers in order from bottom (Layer 1) to top (Layer 7).',a:'Physical, Data Link, Network, Transport, Session, Presentation, Application. Memory trick: "Please Do Not Throw Sausage Pizza Away" — first letter of each word = first letter of each layer.'},
+{q:'A technician finds that the Ethernet cable is damaged. At which OSI layer is this problem?',a:'Layer 1 — Physical Layer. Cable damage = physical problem. Always start troubleshooting from Layer 1 (physical) and work upward. This is called the "bottom-up" approach.'},
+{q:'The data at Layer 2 is called a Frame. The data at Layer 3 is called a Packet. What is the data called at Layer 4 when using TCP?',a:'Segment. The full naming: Layer 7-5 = Data, Layer 4 = Segment (TCP) or Datagram (UDP), Layer 3 = Packet, Layer 2 = Frame, Layer 1 = Bits.'},
+{q:'ARP (Address Resolution Protocol) maps an IP address to a MAC address. At which OSI layer does ARP operate?',a:'Layer 2 — Data Link Layer. ARP asks "Who has IP 192.168.1.5? Tell me your MAC address." The device with that IP replies with its MAC. This is needed because switches use MAC addresses, not IPs.'},
+{q:'A user cannot open websites but CAN ping the server by IP address. Which OSI layer is most likely the problem — and which protocol is probably failing?',a:'Layer 7 — Application Layer. DNS is probably failing. The user can reach the server (ping works = Layers 1-4 OK), but cannot resolve domain names to IPs. Fix: check DNS settings or try nslookup.'},
+]},
+{name:'Devices',qs:[
+{q:'What is the main difference between a MANAGED switch and an UNMANAGED switch?',a:'A managed switch can be configured (VLANs, port security, monitoring, QoS). An unmanaged switch is plug-and-play — no configuration possible. Managed switches are used in business networks, unmanaged in home networks.'},
+{q:'This device translates private IP addresses to public IP addresses so multiple devices can share one public IP to access the internet.',a:'A Router (performing NAT — Network Address Translation). Your home router translates 192.168.x.x private addresses to your single public IP. Without NAT, every device would need its own public IP.'},
+{q:'A wireless device that creates a Wi-Fi network. Enterprise networks have many of these placed around the building for coverage.',a:'An Access Point (AP). APs connect wireless devices to the wired network. Enterprise APs are managed centrally by a Wireless LAN Controller (WLC). Multiple APs = better coverage throughout the building.'},
+{q:'This device connects two different types of networks together — for example, connecting a TCP/IP network to an older mainframe network. It translates between different protocols.',a:'A Gateway. Gateways translate between different network architectures/protocols. Your "default gateway" is your router — it connects your local network to the internet (a different network).'},
+{q:'A Layer 1 device that receives a weak signal and retransmits it at full strength to extend the range of the network. Also called an extender.',a:'A Repeater (or Range Extender). It receives the signal, amplifies it, and retransmits. Used to extend Wi-Fi range or cable length. Does NOT make decisions — just boosts the signal. Operates at Layer 1 (Physical).'},
+]},
+{name:'Protocols & Ports',qs:[
+{q:'This protocol uses port 53 and can use BOTH TCP and UDP. For regular queries it uses UDP, but for large responses (like zone transfers) it uses TCP.',a:'DNS (Domain Name System). Regular lookups = UDP port 53 (fast, small packets). Zone transfers between DNS servers = TCP port 53 (reliable, large data). One of the few protocols that uses both.'},
+{q:'RDP allows you to remotely control another computer with a graphical desktop. What port number does it use?',a:'Port 3389. RDP = Remote Desktop Protocol. Used heavily in IT for managing Windows servers remotely. SECURITY WARNING: RDP exposed to the internet is a huge risk — attackers brute-force RDP constantly. Always use VPN + MFA.'},
+{q:'ICMP is used by the "ping" command to test connectivity. At which OSI layer does ICMP operate, and does it use a port number?',a:'ICMP operates at Layer 3 (Network Layer) and does NOT use port numbers. ICMP is not TCP or UDP — it is its own protocol inside IP. Ping sends ICMP Echo Request, receives ICMP Echo Reply. Traceroute also uses ICMP.'},
+{q:'This protocol automatically assigns the correct time to all devices on a network. Servers, routers, and firewalls all use it. It uses UDP port 123.',a:'NTP — Network Time Protocol (port 123). Accurate time is CRITICAL for: log correlation (which event happened first), certificate validation (TLS certs have expiry dates), Kerberos authentication (5-minute tolerance).'},
+{q:'SNMP is used to monitor network devices like routers and switches. What does SNMP stand for, and what two port numbers does it use?',a:'Simple Network Management Protocol. Uses UDP port 161 (queries) and UDP port 162 (traps/alerts). Network monitoring tools (Zabbix, PRTG, Nagios) use SNMP to check device health, bandwidth, CPU, and memory.'},
+]},
+{name:'DNS & DHCP',qs:[
+{q:'A CNAME record in DNS is an alias. If images.example.com has a CNAME pointing to cdn.cloudflare.net, what happens when you request images.example.com?',a:'Your DNS resolver sees the CNAME and then resolves cdn.cloudflare.net to get the actual IP address. CNAME = "this domain is actually ANOTHER domain." Common with CDNs — the website points its subdomain to a CDN provider.'},
+{q:'What is a DNS TTL, and what happens when it expires?',a:'TTL = Time To Live (in seconds). It tells DNS resolvers how long to CACHE the answer. Example: TTL 3600 = cache for 1 hour. After expiry, the resolver must query the authoritative server again for a fresh answer. Short TTL = frequent updates but more DNS traffic.'},
+{q:'In DHCP, what is a "lease time" and what happens when a device\'s lease expires while it\'s still connected?',a:'Lease time = how long the device can keep the IP address. BEFORE expiry, the device tries to RENEW the lease (at 50% of lease time). If renewal succeeds, the timer resets. If the device is disconnected and the lease expires, the IP returns to the pool for others.'},
+{q:'What is a DNS forwarder? For example, when you set your DNS to 8.8.8.8 (Google) or 1.1.1.1 (Cloudflare), what role are these servers playing?',a:'A DNS forwarder receives your DNS query and resolves it on your behalf (recursive resolution). Instead of your computer talking to Root→TLD→Authoritative, the forwarder does all that work and returns the final answer. 8.8.8.8 and 1.1.1.1 are public recursive DNS resolvers.'},
+{q:'What is DHCP Relay (or IP Helper), and why is it needed in networks with multiple subnets?',a:'DHCP Relay forwards DHCP broadcasts across different subnets. Problem: DHCP Discover is a broadcast, and broadcasts do NOT cross routers. Solution: the router acts as a relay — it receives the broadcast on one subnet and forwards it as unicast to the DHCP server on another subnet.'},
+]},
+{name:'TCP & UDP',qs:[
+{q:'What is the difference between a "well-known port" (0-1023), a "registered port" (1024-49151), and an "ephemeral port" (49152-65535)?',a:'Well-known (0-1023): assigned to common services (HTTP=80, SSH=22, DNS=53). Registered (1024-49151): used by applications (MySQL=3306, RDP=3389). Ephemeral (49152-65535): temporary random ports assigned by the OS for outgoing connections.'},
+{q:'When you open a web browser and visit google.com, your computer uses port 443 as the DESTINATION. But what port does your computer use as the SOURCE?',a:'A random ephemeral port (e.g., 52847). The OS assigns a temporary high port for outgoing connections. The response from Google goes back to YOUR_IP:52847. After the connection closes, that ephemeral port is released.'},
+{q:'TCP uses "sequence numbers" in every segment. What are sequence numbers used for?',a:'Sequence numbers ensure data arrives in the CORRECT ORDER and detect missing segments. Each segment has a sequence number. The receiver can: 1) put out-of-order segments back in order, 2) detect gaps (missing segments) and request retransmission, 3) detect duplicates.'},
+{q:'What is the difference between TCP "flow control" and TCP "congestion control"?',a:'Flow control: the RECEIVER tells the sender to slow down (using the Window Size field) so it does not get overwhelmed. Congestion control: the SENDER detects network congestion (packet loss) and slows down automatically to avoid making congestion worse. Both prevent data loss.'},
+{q:'The command "netstat -an" shows connections in different states: ESTABLISHED, LISTENING, TIME_WAIT, SYN_SENT. What does LISTENING mean?',a:'LISTENING means a port is open and waiting for incoming connections. Example: a web server LISTENS on port 443, waiting for clients to connect. If you see an unexpected LISTENING port, it could be malware or an unauthorized service — investigate!'},
+]},
+];
+
+const POINTS=[100,200,300,400,500];
+let scores=[0,0,0,0],teamNames=['Team Alpha','Team Beta','Team Gamma','Team Delta'],numTeams=2,used=new Set(),currentQ=null;
+
+function init(){document.getElementById('qoverlay').classList.add('on');document.getElementById('q-cat').textContent='SETUP';document.getElementById('q-pts').textContent='📡';document.getElementById('q-text').textContent='How many teams are playing?';document.getElementById('q-answer').style.display='none';document.getElementById('q-btns').innerHTML=[2,3,4].map(n=>`<div class="q-btn" onclick="setupTeams(${n})">${n} Teams</div>`).join('');}
+function setupTeams(n){numTeams=n;scores=Array(n).fill(0);document.getElementById('qoverlay').classList.remove('on');renderBoard();renderScores();renderTeams();}
+function renderTeams(){const cols=['t1','t2','t3','t4'];document.getElementById('teams').innerHTML=teamNames.slice(0,numTeams).map((t,i)=>`<div class="team ${cols[i]}" onclick="editTeamName(${i})">${t}: <span>${scores[i]}</span></div>`).join('');}
+function editTeamName(i){const name=prompt('Enter team name:',teamNames[i]);if(name)teamNames[i]=name;renderTeams();renderScores();}
+function renderBoard(){let html=CATEGORIES.map(c=>`<div class="cat-header">${c.name}</div>`).join('');POINTS.forEach((pts,pi)=>{CATEGORIES.forEach((cat,ci)=>{const key=ci+'-'+pi;html+=`<div class="cell${used.has(key)?' used':''}" onclick="openQ(${ci},${pi})">${used.has(key)?'':pts}</div>`;});});document.getElementById('board').innerHTML=html;}
+function renderScores(){const cols=['sb-t1','sb-t2','sb-t3','sb-t4'];document.getElementById('scoreboard').innerHTML=teamNames.slice(0,numTeams).map((t,i)=>`<div class="sb-team ${cols[i]}"><div class="sb-name">${t}</div><div class="sb-score">${scores[i]}</div></div>`).join('');}
+function openQ(ci,pi){const key=ci+'-'+pi;if(used.has(key))return;used.add(key);currentQ={ci,pi,pts:POINTS[pi]};const q=CATEGORIES[ci].qs[pi];document.getElementById('qoverlay').classList.add('on');document.getElementById('q-cat').textContent=CATEGORIES[ci].name;document.getElementById('q-pts').textContent=POINTS[pi];document.getElementById('q-text').textContent=q.q;document.getElementById('q-answer').style.display='none';document.getElementById('q-answer').textContent=q.a;document.getElementById('q-btns').innerHTML=`<div class="q-btn reveal" onclick="revealAnswer()">Show Answer</div>`;renderBoard();}
+function revealAnswer(){document.getElementById('q-answer').style.display='block';const tColors=['#38bdf8','#4ade80','#f472b6','#fb923c'];document.getElementById('q-btns').innerHTML=teamNames.slice(0,numTeams).map((t,i)=>`<div class="q-btn" style="color:${tColors[i]};border-color:${tColors[i]}" onclick="awardPoints(${i})">+${currentQ.pts} → ${t}</div>`).join('')+`<div class="q-btn close" onclick="closeQ()">No one got it</div>`;}
+function awardPoints(ti){scores[ti]+=currentQ.pts;renderScores();renderTeams();closeQ();}
+function closeQ(){document.getElementById('qoverlay').classList.remove('on');currentQ=null;if(used.size===25){setTimeout(()=>{const mx=Math.max(...scores);const w=teamNames[scores.indexOf(mx)];document.getElementById('qoverlay').classList.add('on');document.getElementById('q-cat').textContent='GAME OVER';document.getElementById('q-pts').textContent='🏆';document.getElementById('q-text').textContent=w+' wins with '+mx+' points!';document.getElementById('q-answer').style.display='none';document.getElementById('q-btns').innerHTML=`<div class="q-btn" style="color:#4ade80;border-color:#4ade80" onclick="location.reload()">New Game</div>`;},500);}}
+init();
+</script>
+</body></html>

@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Network Recon Mission</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;700&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;background:#060610;font-family:'Outfit',sans-serif;color:#e0e0e0}
+header{height:48px;background:#10101a;border-bottom:1px solid #1a1a2e;display:flex;align-items:center;padding:0 16px}
+header h1{font-size:16px;font-weight:900}header h1 span{color:#4ade80}
+.hdr-r{margin-left:auto;font-family:'IBM Plex Mono';font-size:11px;color:#888}
+.container{max-width:700px;margin:0 auto;padding:20px}
+
+.mission{background:#10101a;border:2px solid #1a1a2e;border-radius:14px;overflow:hidden;margin-bottom:12px}
+.m-hdr{padding:12px 16px;border-bottom:1px solid #1a1a2e;display:flex;align-items:center;gap:8px}
+.m-num{font-family:'IBM Plex Mono';font-size:10px;font-weight:700;color:#4ade80;background:rgba(74,222,128,.08);padding:3px 8px;border-radius:4px}
+.m-title{font-size:14px;font-weight:800;color:#f0f0f0;flex:1}
+.m-pts{font-family:'IBM Plex Mono';font-size:11px;color:#fbbf24}
+.m-check{font-size:16px}
+
+.m-body{padding:16px;display:none}
+.m-body.open{display:block}
+
+.m-task{font-size:13px;color:#888;line-height:1.7;margin-bottom:12px}
+
+.cmd-box{background:#050508;border:1px solid #1a1a2e;border-radius:8px;padding:12px;margin-bottom:12px;position:relative}
+.cmd-label{font-size:9px;color:#555;margin-bottom:4px;text-transform:uppercase;letter-spacing:1px}
+.cmd-text{font-family:'IBM Plex Mono';font-size:14px;color:#4ade80;cursor:pointer;user-select:all}
+.cmd-copy{position:absolute;top:8px;right:8px;font-size:9px;color:#333;cursor:pointer}
+.cmd-copy:hover{color:#4ade80}
+
+.answer-section{margin-top:12px}
+.ans-label{font-size:10px;font-weight:600;color:#888;margin-bottom:4px}
+.ans-row{display:flex;gap:6px}
+.ans-input{flex:1;padding:10px 12px;border:1.5px solid #1a1a2e;border-radius:6px;background:#050508;color:#f0f0f0;font-family:'IBM Plex Mono';font-size:13px;outline:none}
+.ans-input:focus{border-color:#4ade80}
+.ans-input.done{border-color:#4ade80;background:rgba(74,222,128,.02);color:#4ade80}
+.ans-btn{padding:10px 18px;border-radius:6px;border:1.5px solid #4ade80;background:transparent;color:#4ade80;font-size:12px;font-weight:700;cursor:pointer;font-family:'Outfit'}
+
+.m-hint{font-size:10px;color:#333;cursor:pointer;margin-top:8px}
+.m-hint:hover{color:#58a6ff}
+.m-hint.open{color:#58a6ff}
+
+.m-explain{background:rgba(88,166,255,.04);border:1px solid rgba(88,166,255,.1);border-radius:6px;padding:8px;font-size:10px;color:#58a6ff;line-height:1.6;margin-top:6px;display:none}
+.m-explain.show{display:block}
+
+.scoreboard{background:#10101a;border:2px solid #1a1a2e;border-radius:14px;padding:16px;text-align:center;margin-bottom:14px}
+.score-big{font-family:'IBM Plex Mono';font-size:36px;font-weight:900;color:#4ade80}
+.score-label{font-size:11px;color:#555;margin-top:2px}
+.progress-bar{height:6px;background:#1a1a2e;border-radius:3px;margin-top:8px;overflow:hidden}
+.progress-fill{height:100%;background:linear-gradient(90deg,#4ade80,#38bdf8);border-radius:3px;transition:width .3s}
+</style>
+</head>
+<body>
+<header><h1>Network <span>Recon</span> Mission</h1><span class="hdr-r" id="hdr-status"></span></header>
+<div class="container">
+<div class="scoreboard">
+<div class="score-big" id="score">0/20</div>
+<div class="score-label">Missions Completed</div>
+<div class="progress-bar"><div class="progress-fill" id="prog" style="width:0%"></div></div>
+</div>
+<div id="missions"></div>
+</div>
+<script>
+const MISSIONS=[
+// === YOUR OWN MACHINE ===
+{num:'01',title:'Find your IP address',pts:1,
+task:'Open CMD (press Win+R, type <b>cmd</b>, press Enter). Run the command below. Find your <b>IPv4 Address</b> and type it here.',
+cmd:'ipconfig',
+ansLabel:'Your IPv4 Address',placeholder:'e.g., 192.168.1.50',
+validate:v=>/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(v.trim()),
+hint:'Look for the line that says "IPv4 Address" under your active network adapter (usually Wi-Fi or Ethernet).',
+explain:'Your IPv4 address is your device\'s identity on the local network. It\'s assigned by DHCP from your router. Private IPs start with 192.168.x.x, 10.x.x.x, or 172.16-31.x.x.'},
+
+{num:'02',title:'Find your default gateway',pts:1,
+task:'In the same ipconfig output, find your <b>Default Gateway</b>. This is your router\'s IP address.',
+cmd:'ipconfig',
+ansLabel:'Your Default Gateway',placeholder:'e.g., 192.168.1.1',
+validate:v=>/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(v.trim()),
+hint:'The Default Gateway is usually your router — the device that connects your network to the internet.',
+explain:'The default gateway is the router. When your computer wants to reach something OUTSIDE your local network (like Google), it sends the packet to the gateway, which forwards it to the internet.'},
+
+{num:'03',title:'Find your DNS server',pts:1,
+task:'In the ipconfig output, find your <b>DNS Servers</b> address.',
+cmd:'ipconfig /all',
+ansLabel:'Your DNS Server IP',placeholder:'e.g., 192.168.1.1 or 8.8.8.8',
+validate:v=>/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(v.trim()),
+hint:'Run "ipconfig /all" (with the /all flag) for more details including DNS servers.',
+explain:'Your DNS server translates domain names to IP addresses. Often it\'s the same as your router (the router forwards DNS queries to your ISP). Some people change it to 8.8.8.8 (Google) or 1.1.1.1 (Cloudflare) for faster resolution.'},
+
+{num:'04',title:'Find your MAC address',pts:1,
+task:'Run the command below. Find the <b>Physical Address</b> (MAC address) of your active network adapter.',
+cmd:'ipconfig /all',
+ansLabel:'Your MAC Address',placeholder:'e.g., A4-5E-60-B2-3C-11',
+validate:v=>/^([0-9A-Fa-f]{2}[-:]){5}[0-9A-Fa-f]{2}$/.test(v.trim()),
+hint:'It\'s labeled "Physical Address" and looks like: A4-5E-60-B2-3C-11 (6 pairs separated by dashes).',
+explain:'Your MAC address is burned into your network card at the factory. It\'s unique worldwide. The first 3 pairs identify the manufacturer (e.g., Intel, Realtek). Switches use MAC addresses to forward frames.'},
+
+// === PING ===
+{num:'05',title:'Ping your router',pts:1,
+task:'Ping your default gateway (the IP from Mission 02). How many milliseconds is the response time?',
+cmd:'ping [YOUR GATEWAY IP]',
+ansLabel:'Response time (ms)',placeholder:'e.g., 1 or 3',
+validate:v=>/^\d+$/.test(v.trim()),
+hint:'Look for "time=Xms" in each reply line. What number is X?',
+explain:'Ping sends an ICMP Echo Request and measures the round-trip time. Your router should respond in <5ms since it\'s on your local network. High latency to the router could mean Wi-Fi interference or a congested network.'},
+
+{num:'06',title:'Ping Google DNS',pts:1,
+task:'Ping 8.8.8.8 (Google\'s public DNS). What is the average response time? This measures your internet latency.',
+cmd:'ping 8.8.8.8',
+ansLabel:'Average response time (ms)',placeholder:'e.g., 15 or 25',
+validate:v=>/^\d+$/.test(v.trim()),
+hint:'At the end of ping, it shows "Average = Xms". Type that number.',
+explain:'This is your internet latency — how long it takes a packet to travel from your computer to Google\'s server and back. Under 50ms is excellent. 50-100ms is normal. Over 200ms = noticeable lag in video calls and gaming.'},
+
+{num:'07',title:'Ping your classmate',pts:2,
+task:'Ask the person next to you for their IP address (from Mission 01). Ping their IP. Did you get a reply?',
+cmd:'ping [CLASSMATE\'S IP]',
+ansLabel:'Did it reply? (yes/no)',placeholder:'yes or no',
+validate:v=>/^(yes|no|Yes|No|YES|NO)$/i.test(v.trim()),
+hint:'If it says "Request timed out" the firewall might be blocking ICMP. If you get replies, you\'re on the same network!',
+explain:'If ping succeeds, you and your classmate are on the same local network and can communicate. If it fails, Windows Firewall might be blocking ICMP (ping). This is a common security setting — blocking ping prevents attackers from discovering your device.'},
+
+// === DNS ===
+{num:'08',title:'Resolve google.com',pts:1,
+task:'Use nslookup to find the IP address of google.com. What IP address did it return?',
+cmd:'nslookup google.com',
+ansLabel:'Google\'s IP address',placeholder:'e.g., 142.250.80.46',
+validate:v=>/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(v.trim()),
+hint:'Look for "Address:" under "Non-authoritative answer" — that\'s Google\'s IP.',
+explain:'Your computer just performed DNS resolution! It asked your DNS server "What is the IP for google.com?" and got an answer. "Non-authoritative" means the answer came from cache, not directly from Google\'s DNS server.'},
+
+{num:'09',title:'Find the mail server for gmail.com',pts:2,
+task:'Use nslookup to find the MX (mail exchange) record for gmail.com. What is the name of the mail server?',
+cmd:'nslookup -type=mx gmail.com',
+ansLabel:'Mail server name',placeholder:'e.g., gmail-smtp-in.l.google.com',
+validate:v=>v.trim().length>5,
+hint:'MX records show where email for @gmail.com gets delivered. Look for the server name after the priority number.',
+explain:'MX records tell the internet WHERE to send email for a domain. When someone sends email to you@gmail.com, their email server looks up the MX record for gmail.com to find the mail server address. The priority number determines which server to try first (lower = higher priority).'},
+
+{num:'10',title:'Try a different DNS server',pts:2,
+task:'Query Google\'s DNS (8.8.8.8) directly instead of your default DNS. Does it return a different IP for microsoft.com?',
+cmd:'nslookup microsoft.com 8.8.8.8',
+ansLabel:'IP returned by Google DNS',placeholder:'e.g., 20.70.246.20',
+validate:v=>/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(v.trim()),
+hint:'The second argument (8.8.8.8) tells nslookup to use Google\'s DNS instead of your default. Compare the IP with "nslookup microsoft.com" (your default DNS).',
+explain:'Different DNS servers can return different IPs for the same domain. This is normal — large companies like Microsoft have servers worldwide. Your DNS returns the server closest to you. Google\'s DNS might return a server closest to Google\'s data center.'},
+
+// === TRACEROUTE ===
+{num:'11',title:'Trace the route to Google',pts:2,
+task:'Run tracert to google.com. How many HOPS does it take? (Count the numbered lines)',
+cmd:'tracert google.com',
+ansLabel:'Number of hops',placeholder:'e.g., 12',
+validate:v=>/^\d+$/.test(v.trim()),
+hint:'Each numbered line is one "hop" — one router your packet passes through. Count them all until you reach google.com. Be patient — tracert takes a minute.',
+explain:'Traceroute shows every router between you and Google. Hop 1 = your router. Hop 2 = your ISP. Then backbone routers, and finally Google\'s network. Each hop adds latency. More hops = slower. Some hops show * * * (timeouts) — those routers are configured to not respond to traceroute.'},
+
+{num:'12',title:'Find your ISP name',pts:1,
+task:'In the tracert output, look at hop 2 or 3. The hostname often contains your ISP\'s name. What ISP do you use?',
+cmd:'(same tracert output from Mission 11)',
+ansLabel:'Your ISP name',placeholder:'e.g., Comcast, Vodafone, etc.',
+validate:v=>v.trim().length>=2,
+hint:'Look at the hostnames in the first few hops. They often contain the ISP name like "verizon", "comcast", "bt.net", etc.',
+explain:'The first hop after your router is your ISP\'s network. You can see your traffic path: Home Router → ISP → Regional backbone → International backbone → Google. This is the actual physical path your data takes across the internet.'},
+
+// === ARP & NETWORK DISCOVERY ===
+{num:'13',title:'View your ARP table',pts:1,
+task:'Run "arp -a" to see all devices your computer has communicated with recently. How many entries are there?',
+cmd:'arp -a',
+ansLabel:'Number of ARP entries',placeholder:'e.g., 8',
+validate:v=>/^\d+$/.test(v.trim()),
+hint:'Count the lines that have IP addresses and MAC addresses (physical addresses).',
+explain:'The ARP table maps IP addresses to MAC addresses. Your computer needs both to communicate: the IP tells it WHERE to send data, the MAC tells the switch WHICH port to use. Every device you pinged or connected to will have an ARP entry.'},
+
+{num:'14',title:'Find your router\'s MAC address',pts:2,
+task:'In the ARP table (arp -a), find your default gateway\'s IP address. What is its MAC address?',
+cmd:'arp -a',
+ansLabel:'Router MAC address',placeholder:'e.g., a4-5e-60-b2-3c-11',
+validate:v=>/^([0-9A-Fa-f]{2}[-:]){5}[0-9A-Fa-f]{2}$/.test(v.trim()),
+hint:'Find the row where the IP matches your default gateway (from Mission 02). The MAC is in the "Physical Address" column.',
+explain:'Your computer uses ARP to discover the router\'s MAC address. When you send a packet to the internet, it goes to the router first. Your computer needs the router\'s MAC to create the Ethernet frame. This is Layer 2 + Layer 3 working together.'},
+
+// === ADVANCED ===
+{num:'15',title:'Check active connections',pts:1,
+task:'Run netstat to see all active network connections. How many ESTABLISHED connections do you have?',
+cmd:'netstat -an | find "ESTABLISHED"',
+ansLabel:'Number of ESTABLISHED connections',placeholder:'e.g., 15',
+validate:v=>/^\d+$/.test(v.trim()),
+hint:'Count the lines that say ESTABLISHED. These are active TCP connections — your browser tabs, apps, updates all create connections.',
+explain:'Each ESTABLISHED connection is an active TCP session. Your browser alone might have 10+ connections (one per tab, plus background connections). Look at the foreign addresses — you\'ll see IPs of Google, Microsoft, and other services you\'re connected to right now.'},
+
+{num:'16',title:'Find who owns an IP',pts:2,
+task:'Pick any foreign IP address from your netstat output. Open your browser and go to <b>who.is/whois-ip/ip-address/[THE IP]</b>. Who owns it?',
+cmd:'(use browser: who.is)',
+ansLabel:'Organization name',placeholder:'e.g., Google LLC, Microsoft, Cloudflare',
+validate:v=>v.trim().length>=3,
+hint:'Copy a foreign IP from netstat, paste it into who.is. Look for "OrgName" or "Organization" in the results.',
+explain:'WHOIS tells you who OWNS an IP address block. When investigating a suspicious connection in a SOC, one of the first things analysts do is check WHOIS — is this IP owned by a legitimate company or a known hosting provider used by attackers?'},
+
+{num:'17',title:'Check if your email was breached',pts:1,
+task:'Go to <b>haveibeenpwned.com</b> in your browser. Enter your email address. How many breaches was it found in?',
+cmd:'(use browser: haveibeenpwned.com)',
+ansLabel:'Number of breaches',placeholder:'e.g., 0 or 3',
+validate:v=>/^\d+$/.test(v.trim()),
+hint:'Enter your real email. If it says "No pwnage found" enter 0. Otherwise count the number of breaches listed.',
+explain:'This site checks if your email + password was leaked in any known data breach. If your email appears in breaches, your password for those sites was LEAKED. Change it immediately and never reuse passwords across sites. This is why password managers exist.'},
+
+{num:'18',title:'Check your browser fingerprint',pts:1,
+task:'Go to <b>browserleaks.com</b> in your browser. What does it show as your User-Agent? (Just the browser name + version)',
+cmd:'(use browser: browserleaks.com)',
+ansLabel:'Your browser + version',placeholder:'e.g., Chrome 125 or Firefox 128',
+validate:v=>v.trim().length>=3,
+hint:'On browserleaks.com, look for "User-Agent" near the top. It shows your browser name, version, and operating system.',
+explain:'Your browser sends its User-Agent string with EVERY web request. This means every website knows exactly what browser and OS you use. Combined with screen resolution, fonts, and plugins, websites can create a unique "fingerprint" to track you — even without cookies. This is browser fingerprinting.'},
+
+{num:'19',title:'Find how many devices are on your network',pts:2,
+task:'Run the command below. Count how many devices respond. These are all the devices on your local network!',
+cmd:'arp -a',
+ansLabel:'Number of devices on your network',placeholder:'e.g., 12',
+validate:v=>/^\d+$/.test(v.trim()),
+hint:'Each entry in arp -a with type "dynamic" is a real device on your network. Count them — phones, laptops, smart TVs, printers all show up here.',
+explain:'Every device on your network that has communicated recently appears in the ARP table. In a classroom with 20 students, you should see 20+ entries. In a security context, unexpected devices in the ARP table could be rogue devices or unauthorized users on your network.'},
+
+{num:'20',title:'Check your DNS response time',pts:2,
+task:'Run the command below. Look at the output — how long did the DNS query take? Open CMD and type this:',
+cmd:'powershell -c "Measure-Command { nslookup google.com }" | find "Milliseconds"',
+ansLabel:'DNS query time in milliseconds',placeholder:'e.g., 35',
+validate:v=>/^\d+$/.test(v.trim()),
+hint:'Look for the "TotalMilliseconds" or "Milliseconds" line. This is how long DNS resolution took.',
+explain:'Fast DNS = fast browsing. If DNS takes 200ms, EVERY new website you visit is delayed by 200ms before it even starts loading. This is why some people switch to faster DNS servers like 1.1.1.1 (Cloudflare) or 8.8.8.8 (Google). Try switching and comparing speeds!'},
+];
+
+let completed=new Set();
+
+function render(){
+  document.getElementById('score').textContent=completed.size+'/'+MISSIONS.length;
+  document.getElementById('prog').style.width=(completed.size/MISSIONS.length*100)+'%';
+  document.getElementById('hdr-status').textContent=completed.size+'/'+MISSIONS.length+' completed';
+  
+  document.getElementById('missions').innerHTML=MISSIONS.map((m,i)=>{
+    const done=completed.has(i);
+    return`<div class="mission">
+    <div class="m-hdr" onclick="toggle(${i})" style="cursor:pointer">
+    <span class="m-num">${m.num}</span>
+    <span class="m-title">${m.title}</span>
+    <span class="m-pts">${m.pts} pt${m.pts>1?'s':''}</span>
+    <span class="m-check">${done?'✅':'⬜'}</span>
+    </div>
+    <div class="m-body${i===0&&!done?' open':''}" id="mb-${i}">
+    <div class="m-task">${m.task}</div>
+    <div class="cmd-box">
+    <div class="cmd-label">Command to run in CMD</div>
+    <div class="cmd-text" onclick="navigator.clipboard.writeText('${m.cmd.replace(/'/g,"\\'")}');this.nextElementSibling.textContent='Copied!'">${m.cmd}</div>
+    <div class="cmd-copy">click to copy</div>
+    </div>
+    <div class="answer-section">
+    <div class="ans-label">${m.ansLabel}</div>
+    <div class="ans-row">
+    <input class="ans-input${done?' done':''}" id="ans-${i}" placeholder="${m.placeholder}" ${done?'disabled':''} value="${done?document.getElementById('ans-'+i)?.value||'✓':''}"/>
+    ${done?'':`<button class="ans-btn" onclick="submit(${i})">Submit</button>`}
+    </div>
+    </div>
+    <div class="m-hint${done?' open':''}" onclick="document.getElementById('hint-${i}').classList.toggle('show');this.classList.toggle('open')">${done?'📖 Explanation':'💡 Need a hint?'}</div>
+    <div class="m-explain${done?' show':''}" id="hint-${i}">${done?'✅ '+m.explain:m.hint}</div>
+    </div></div>`;
+  }).join('');
+}
+
+function toggle(i){document.getElementById('mb-'+i).classList.toggle('open');}
+
+function submit(i){
+  const input=document.getElementById('ans-'+i);
+  const val=input.value;
+  if(MISSIONS[i].validate(val)){
+    completed.add(i);
+    render();
+  } else {
+    input.style.borderColor='#ff6b6b';
+    setTimeout(()=>input.style.borderColor='#1a1a2e',1000);
+  }
+}
+
+render();
+</script>
+</body></html>

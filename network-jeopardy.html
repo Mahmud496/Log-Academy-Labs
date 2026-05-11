@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Networking Jeopardy</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;700&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;background:#0a0a14;font-family:'Outfit',sans-serif;color:#e0e0e0}
+.hud{height:50px;background:#12121e;border-bottom:2px solid #2a2a3e;display:flex;align-items:center;padding:0 16px;gap:20px}
+.hud-title{font-size:18px;font-weight:900;color:#38bdf8}
+.teams{display:flex;gap:12px;margin-left:auto}
+.team{padding:6px 16px;border-radius:8px;font-family:'IBM Plex Mono';font-size:13px;font-weight:700;border:2px solid #2a2a3e;cursor:pointer;transition:all .12s}
+.team:hover{border-color:#38bdf8}
+.t1{color:#38bdf8}.t2{color:#4ade80}.t3{color:#f472b6}.t4{color:#fb923c}
+.container{max-width:900px;margin:0 auto;padding:16px}
+.board{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-bottom:16px}
+.cat-header{background:#1a1a3e;border:2px solid #2a2a3e;border-radius:8px;padding:12px 6px;text-align:center;font-size:10px;font-weight:800;color:#38bdf8;text-transform:uppercase;letter-spacing:1px}
+.cell{background:#12121e;border:2px solid #2a2a3e;border-radius:8px;padding:16px 8px;text-align:center;cursor:pointer;transition:all .15s;font-family:'IBM Plex Mono';font-size:20px;font-weight:900;color:#38bdf8}
+.cell:hover:not(.used){border-color:#38bdf8;background:#1a1a2e;transform:scale(1.05)}
+.cell.used{opacity:.15;cursor:default;color:#333}
+.q-overlay{position:fixed;inset:0;background:rgba(10,10,20,.95);display:none;align-items:center;justify-content:center;z-index:100;padding:20px}
+.q-overlay.on{display:flex}
+.q-box{max-width:600px;width:100%;text-align:center}
+.q-cat{font-size:12px;font-weight:700;color:#38bdf8;letter-spacing:3px;text-transform:uppercase;margin-bottom:8px}
+.q-pts{font-family:'IBM Plex Mono';font-size:48px;font-weight:900;color:#38bdf8;margin-bottom:16px}
+.q-text{font-size:20px;font-weight:700;color:#f0f0f0;line-height:1.5;margin-bottom:24px;min-height:80px}
+.q-answer{font-size:16px;color:#4ade80;margin-bottom:20px;display:none;padding:16px;background:rgba(74,222,128,.06);border:1px solid rgba(74,222,128,.1);border-radius:10px;text-align:left;line-height:1.6}
+.q-btns{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+.q-btn{padding:10px 24px;border-radius:99px;border:2px solid #2a2a3e;background:transparent;cursor:pointer;font-size:13px;font-weight:700;font-family:'Outfit';transition:all .12s;color:#888}
+.q-btn:hover{border-color:#38bdf8;color:#38bdf8}
+.q-btn.reveal{border-color:#4ade80;color:#4ade80}
+.q-btn.close{border-color:#555;color:#888}
+.scoreboard{display:flex;gap:8px;justify-content:center}
+.sb-team{flex:1;max-width:200px;background:#12121e;border:2px solid #2a2a3e;border-radius:10px;padding:12px;text-align:center}
+.sb-name{font-size:12px;font-weight:700;margin-bottom:4px}
+.sb-score{font-family:'IBM Plex Mono';font-size:24px;font-weight:900}
+.sb-t1 .sb-name{color:#38bdf8}.sb-t1 .sb-score{color:#38bdf8}
+.sb-t2 .sb-name{color:#4ade80}.sb-t2 .sb-score{color:#4ade80}
+.sb-t3 .sb-name{color:#f472b6}.sb-t3 .sb-score{color:#f472b6}
+.sb-t4 .sb-name{color:#fb923c}.sb-t4 .sb-score{color:#fb923c}
+</style>
+</head>
+<body>
+<div class="hud">
+<div class="hud-title">📡 NETWORKING JEOPARDY</div>
+<div class="teams" id="teams"></div>
+</div>
+<div class="container">
+<div class="board" id="board"></div>
+<div class="scoreboard" id="scoreboard"></div>
+</div>
+<div class="q-overlay" id="qoverlay">
+<div class="q-box">
+<div class="q-cat" id="q-cat"></div>
+<div class="q-pts" id="q-pts"></div>
+<div class="q-text" id="q-text"></div>
+<div class="q-answer" id="q-answer"></div>
+<div class="q-btns" id="q-btns"></div>
+</div>
+</div>
+<script>
+const CATEGORIES=[
+{name:'OSI Model',qs:[
+{q:'This OSI layer converts data into electrical signals, light pulses, or radio waves. Cables, Wi-Fi, and fiber optic operate here.',a:'Layer 1 — Physical Layer. This is the actual hardware: Ethernet cables, Wi-Fi radio, fiber optic. If something is wrong here (cable unplugged, Wi-Fi off), NOTHING else works.'},
+{q:'At this layer, data is called a "frame" and devices use MAC addresses to communicate. Switches operate here.',a:'Layer 2 — Data Link Layer. Devices: switches, NICs. Protocol: Ethernet, ARP. Switches learn MAC addresses and forward frames to the correct port.'},
+{q:'This layer handles IP addresses and routing between different networks. Routers operate here.',a:'Layer 3 — Network Layer. Protocols: IP, ICMP (ping). Routers read the destination IP address and forward the packet toward the correct network.'},
+{q:'When data travels DOWN the OSI model, each layer adds its own header around the data. This process is called what?',a:'Encapsulation. At each layer: Data → Segment (L4) → Packet (L3) → Frame (L2) → Bits (L1). Going UP = Decapsulation — each layer strips its header.'},
+{q:'The data at Layer 4 is called a "segment" for TCP and this word for UDP. Also: which OSI layer does encryption (like TLS/SSL) happen at?',a:'UDP data units are called Datagrams. Encryption happens at Layer 6 — Presentation Layer (TLS/SSL encryption and decryption). Layer 5 = Session (manages connections).'},
+]},
+{name:'Devices',qs:[
+{q:'This device sends every frame to ALL connected ports — it does NOT learn which device is on which port. It wastes bandwidth and causes collisions.',a:'A Hub. Hubs are "dumb repeaters." They flood every frame to every port. Switches replaced hubs because switches LEARN MAC addresses and forward only to the correct port.'},
+{q:'This Layer 2 device builds a MAC address table by learning which MAC address is on which port. If the destination MAC is unknown, it floods — otherwise it forwards.',a:'A Switch. When a frame arrives, the switch records the source MAC + port (learning). If the destination MAC is in the table, it forwards to that port only. Unknown = flood.'},
+{q:'This Layer 3 device connects networks together. It reads destination IP addresses and uses a routing table to decide where to send packets.',a:'A Router. Routers connect different networks (e.g., your home LAN to the internet). They make forwarding decisions based on IP addresses using their routing table.'},
+{q:'This device filters traffic using rules based on source/destination IP, port numbers, and protocols. It can ALLOW or DENY packets.',a:'A Firewall. Rules example: ALLOW TCP to port 443 (HTTPS), DENY TCP to port 23 (Telnet). Can be hardware (Palo Alto, FortiGate) or software (Windows Firewall).'},
+{q:'This device assigns IP addresses automatically to devices when they join the network. It uses the DORA process: Discover, Offer, Request, Acknowledge.',a:'A DHCP Server. Without DHCP, every device would need a manually configured IP address. DHCP automates this. The server manages a pool of available IPs and leases them to devices.'},
+]},
+{name:'Protocols & Ports',qs:[
+{q:'This well-known port number is used by HTTP (unencrypted web traffic).',a:'Port 80. HTTP sends everything in plain text — passwords, data, everything. Anyone intercepting the traffic can read it. ALWAYS use HTTPS (port 443) instead.'},
+{q:'This protocol uses port 443 and encrypts web traffic using TLS. The lock icon in your browser confirms this is active.',a:'HTTPS (HTTP Secure) — port 443. It wraps HTTP inside TLS encryption. Without it, a man-in-the-middle can read everything you send. The lock icon = your connection is encrypted.'},
+{q:'SSH uses this port number and replaced an older, insecure protocol that sends passwords in plain text on port 23. Name BOTH protocols and BOTH ports.',a:'SSH = port 22 (encrypted, secure). Telnet = port 23 (plain text, insecure). SSH replaced Telnet because Telnet sends passwords in clear text — anyone sniffing the network can read them.'},
+{q:'Name the protocol and port number used for sending email, AND the two protocols used for receiving email with their port numbers.',a:'Sending: SMTP — port 25. Receiving: POP3 — port 110 (downloads and deletes from server) or IMAP — port 143 (syncs and keeps on server). IMAP is better for multiple devices.'},
+{q:'FTP uses TWO port numbers: one for commands and one for data transfer. Name both ports. Also: why is FTP considered insecure?',a:'FTP uses port 21 (commands) and port 20 (data transfer). FTP is insecure because it sends usernames, passwords, and data in PLAIN TEXT. SFTP (SSH + FTP, port 22) is the secure alternative.'},
+]},
+{name:'DNS & DHCP',qs:[
+{q:'Before asking a DNS server, your computer checks for the answer in THREE local caches in this order.',a:'1. Browser cache, 2. OS cache, 3. Router cache. If ALL three miss, THEN it sends a query to the DNS server. Caching makes DNS fast — you don\'t query the server for sites you already visited.'},
+{q:'This type of DNS record maps a domain name to an IP address. It is the most common record type. Example: google.com → 142.250.80.46.',a:'A Record (Address Record). Maps a domain name directly to an IPv4 address. AAAA record does the same for IPv6 addresses.'},
+{q:'In the DHCP DORA process, the client first sends a BROADCAST message to find any DHCP server. Why does it broadcast instead of sending directly?',a:'Because the client has NO IP address yet — it cannot send a targeted message. It broadcasts to 255.255.255.255 saying "Is there a DHCP server?" All devices on the network hear it, but only DHCP servers respond.'},
+{q:'A DNS query goes through three types of servers in order: first this, then TLD, then Authoritative. Name the first server type and explain what TLD stands for.',a:'Root Server → TLD Server → Authoritative Server. TLD = Top-Level Domain (.com, .org, .net, .uk). Root servers know where .com TLD is. .com TLD knows where google.com\'s authoritative server is.'},
+{q:'When a DHCP lease expires and the device never renewed it, what happens to the IP address? Also: what is a DHCP starvation attack?',a:'The IP returns to the available pool for other devices. DHCP Starvation: attacker sends thousands of DISCOVER messages with fake MAC addresses, exhausting the entire IP pool so legitimate devices cannot get an IP.'},
+]},
+{name:'TCP vs UDP',qs:[
+{q:'TCP uses this 3-packet process to establish a connection before sending any data: the client sends SYN, server replies SYN-ACK, client sends ACK.',a:'The Three-Way Handshake. It confirms both sides are ready. SYN = "I want to connect", SYN-ACK = "OK, I\'m ready too", ACK = "Great, let\'s go." No data is sent during the handshake — it\'s just setup.'},
+{q:'Name TWO applications/services that use UDP instead of TCP, and explain WHY they use UDP.',a:'Video streaming and DNS queries (also: online gaming, VoIP). They use UDP because speed matters more than reliability. A dropped video frame is better than waiting for retransmission. DNS queries are tiny and can just be re-sent if lost.'},
+{q:'A SYN Flood attack exploits the TCP handshake. The attacker sends thousands of SYN packets but never completes the handshake. What happens to the server?',a:'The server keeps waiting for the ACK that never comes, holding resources for each half-open connection. Eventually the server runs out of memory/connection slots and cannot accept legitimate connections. This is a type of Denial of Service (DoS) attack.'},
+{q:'You run "netstat -an" on your computer and see a connection to 142.250.80.46:443. What does the :443 mean, and what protocol is being used?',a:':443 is the PORT NUMBER. Port 443 = HTTPS. Your computer is connected to an HTTPS web server (likely Google, since 142.250.x.x is Google\'s IP range). netstat shows all active TCP and UDP connections.'},
+{q:'TCP guarantees delivery using acknowledgments (ACKs). If a packet is lost, TCP retransmits it. What is the term for this reliability mechanism, and why doesn\'t UDP have it?',a:'TCP uses Acknowledgments and Retransmission. After sending a segment, TCP waits for an ACK from the receiver. No ACK = resend. UDP skips this entirely because waiting for ACKs adds delay — unacceptable for real-time applications like video calls and gaming.'},
+]},
+];
+
+const POINTS=[100,200,300,400,500];
+let scores=[0,0,0,0],teamNames=['Team Alpha','Team Beta','Team Gamma','Team Delta'],numTeams=2,used=new Set(),currentQ=null;
+
+function init(){
+  document.getElementById('qoverlay').classList.add('on');
+  document.getElementById('q-cat').textContent='SETUP';
+  document.getElementById('q-pts').textContent='📡';
+  document.getElementById('q-text').textContent='How many teams are playing?';
+  document.getElementById('q-answer').style.display='none';
+  document.getElementById('q-btns').innerHTML=[2,3,4].map(n=>`<div class="q-btn" onclick="setupTeams(${n})">${n} Teams</div>`).join('');
+}
+function setupTeams(n){numTeams=n;scores=Array(n).fill(0);document.getElementById('qoverlay').classList.remove('on');renderBoard();renderScores();renderTeams();}
+function renderTeams(){const cols=['t1','t2','t3','t4'];document.getElementById('teams').innerHTML=teamNames.slice(0,numTeams).map((t,i)=>`<div class="team ${cols[i]}" onclick="editTeamName(${i})">${t}: <span>${scores[i]}</span></div>`).join('');}
+function editTeamName(i){const name=prompt('Enter team name:',teamNames[i]);if(name)teamNames[i]=name;renderTeams();renderScores();}
+function renderBoard(){let html=CATEGORIES.map(c=>`<div class="cat-header">${c.name}</div>`).join('');POINTS.forEach((pts,pi)=>{CATEGORIES.forEach((cat,ci)=>{const key=ci+'-'+pi;html+=`<div class="cell${used.has(key)?' used':''}" onclick="openQ(${ci},${pi})">${used.has(key)?'':pts}</div>`;});});document.getElementById('board').innerHTML=html;}
+function renderScores(){const cols=['sb-t1','sb-t2','sb-t3','sb-t4'];document.getElementById('scoreboard').innerHTML=teamNames.slice(0,numTeams).map((t,i)=>`<div class="sb-team ${cols[i]}"><div class="sb-name">${t}</div><div class="sb-score">${scores[i]}</div></div>`).join('');}
+function openQ(ci,pi){const key=ci+'-'+pi;if(used.has(key))return;used.add(key);currentQ={ci,pi,pts:POINTS[pi]};const q=CATEGORIES[ci].qs[pi];document.getElementById('qoverlay').classList.add('on');document.getElementById('q-cat').textContent=CATEGORIES[ci].name;document.getElementById('q-pts').textContent=POINTS[pi];document.getElementById('q-text').textContent=q.q;document.getElementById('q-answer').style.display='none';document.getElementById('q-answer').textContent=q.a;document.getElementById('q-btns').innerHTML=`<div class="q-btn reveal" onclick="revealAnswer()">Show Answer</div>`;renderBoard();}
+function revealAnswer(){document.getElementById('q-answer').style.display='block';const tColors=['#38bdf8','#4ade80','#f472b6','#fb923c'];document.getElementById('q-btns').innerHTML=teamNames.slice(0,numTeams).map((t,i)=>`<div class="q-btn" style="color:${tColors[i]};border-color:${tColors[i]}" onclick="awardPoints(${i})">+${currentQ.pts} → ${t}</div>`).join('')+`<div class="q-btn close" onclick="closeQ()">No one got it</div>`;}
+function awardPoints(ti){scores[ti]+=currentQ.pts;renderScores();renderTeams();closeQ();}
+function closeQ(){document.getElementById('qoverlay').classList.remove('on');currentQ=null;if(used.size===25){setTimeout(()=>{const mx=Math.max(...scores);const w=teamNames[scores.indexOf(mx)];document.getElementById('qoverlay').classList.add('on');document.getElementById('q-cat').textContent='GAME OVER';document.getElementById('q-pts').textContent='🏆';document.getElementById('q-text').textContent=w+' wins with '+mx+' points!';document.getElementById('q-answer').style.display='none';document.getElementById('q-btns').innerHTML=`<div class="q-btn" style="color:#4ade80;border-color:#4ade80" onclick="location.reload()">New Game</div>`;},500);}}
+init();
+</script>
+</body></html>

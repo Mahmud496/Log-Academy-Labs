@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>DNS Attacks — Deep Dive</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&family=IBM+Plex+Mono:wght@400;500;700&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;background:#060610;font-family:'Outfit',sans-serif;color:#e0e0e0}
+header{height:44px;background:#10101a;border-bottom:1px solid #1a1a2e;display:flex;align-items:center;padding:0 14px}
+header h1{font-size:15px;font-weight:900}header h1 span{color:#a78bfa}
+.tabs{display:flex;gap:3px;margin-left:auto}
+.tab{padding:4px 10px;border-radius:5px;font-size:9px;font-weight:700;cursor:pointer;border:1.5px solid #1a1a2e;background:transparent;color:#555;font-family:'Outfit'}
+.tab:hover{border-color:#a78bfa;color:#a78bfa}.tab.on{border-color:#a78bfa;color:#a78bfa;background:rgba(167,139,250,.06)}
+.container{max-width:750px;margin:0 auto;padding:16px}
+.sec{display:none}.sec.on{display:block}
+.diagram{background:#0a0a16;border:2px solid #1a1a2e;border-radius:14px;padding:20px;margin-bottom:12px}
+.d-title{font-size:10px;font-weight:700;color:#a78bfa;text-transform:uppercase;letter-spacing:2px;text-align:center;margin-bottom:14px}
+.row{display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:10px;flex-wrap:wrap;min-height:60px}
+.entity{display:flex;flex-direction:column;align-items:center;padding:8px 10px;border-radius:10px;border:2px solid #2a2a3e;background:#10101a;min-width:68px;transition:all .3s}
+.entity.hl{border-color:#a78bfa;background:rgba(167,139,250,.04);box-shadow:0 0 16px rgba(167,139,250,.1)}
+.entity.bad{border-color:rgba(255,107,107,.3);background:rgba(255,107,107,.04)}.entity.bad.hl{border-color:#ff6b6b;box-shadow:0 0 16px rgba(255,107,107,.15)}
+.entity.good{border-color:rgba(74,222,128,.2)}
+.e-icon{font-size:26px;margin-bottom:2px}.e-name{font-size:8px;font-weight:700;color:#888;text-align:center}.e-ip{font-family:'IBM Plex Mono';font-size:7px;color:#444;margin-top:1px;text-align:center}
+.arrow{font-size:18px;color:#2a2a3e;flex-shrink:0}.arrow.atk{color:#ff6b6b;animation:p 1s infinite}.arrow.ok{color:#4ade80}
+@keyframes p{0%,100%{opacity:1}50%{opacity:.3}}
+.pkt{display:inline-block;padding:4px 10px;border-radius:6px;font-family:'IBM Plex Mono';font-size:10px;font-weight:700;animation:f 2s infinite;margin:6px auto;text-align:center}
+.pkt-ok{background:rgba(74,222,128,.1);color:#4ade80;border:1px solid rgba(74,222,128,.15)}
+.pkt-bad{background:rgba(255,107,107,.1);color:#ff6b6b;border:1px solid rgba(255,107,107,.15)}
+.pkt-info{background:rgba(56,189,248,.1);color:#38bdf8;border:1px solid rgba(56,189,248,.15)}
+@keyframes f{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+.dns-cache{background:#0a0a14;border:1px solid #1a1a2e;border-radius:8px;padding:10px;margin:10px 0;font-family:'IBM Plex Mono';font-size:10px}
+.dns-cache-title{font-size:9px;font-weight:700;color:#a78bfa;margin-bottom:6px;letter-spacing:1px}
+.dns-row{display:flex;padding:3px 0;border-bottom:1px solid #0d0d18;gap:12px}.dns-row:last-child{border:none}
+.dns-domain{color:#38bdf8;width:130px}.dns-ip{color:#888;width:120px}.dns-status{font-weight:700;flex:1;text-align:right}
+.dns-ok{color:#4ade80}.dns-poison{color:#ff6b6b}
+.step-card{background:#10101a;border:2px solid #1a1a2e;border-radius:12px;padding:16px;margin-bottom:12px}
+.step-num{font-family:'IBM Plex Mono';font-size:10px;color:#a78bfa;margin-bottom:4px}
+.step-title{font-size:16px;font-weight:800;color:#f0f0f0;margin-bottom:6px}
+.step-detail{font-size:12px;color:#888;line-height:1.8}.step-detail b{color:#f0f0f0}
+.defense{background:rgba(74,222,128,.04);border:1px solid rgba(74,222,128,.1);border-radius:8px;padding:10px;font-size:11px;color:#4ade80;line-height:1.7;margin-bottom:12px}
+.nav{display:flex;gap:8px;justify-content:center;margin-bottom:12px}
+.nav-btn{padding:8px 24px;border-radius:99px;border:1.5px solid #2a2a3e;background:transparent;color:#888;font-size:12px;font-weight:700;cursor:pointer;font-family:'Outfit'}
+.nav-btn:hover{border-color:#a78bfa;color:#a78bfa}.nav-btn.primary{border-color:#a78bfa;color:#a78bfa}
+.dots{display:flex;gap:4px;justify-content:center;margin-bottom:8px}
+.dot{width:18px;height:4px;border-radius:2px;background:#1a1a2e}.dot.done{background:#a78bfa}.dot.on{background:#ff6b6b}
+</style>
+</head>
+<body>
+<header><h1>DNS <span>Attacks</span> — Deep Dive</h1>
+<div class="tabs">
+<div class="tab on" onclick="goSec(0)">DNS Cache Poisoning</div>
+<div class="tab" onclick="goSec(1)">DNS Spoofing</div>
+<div class="tab" onclick="goSec(2)">DNS Tunneling</div>
+<div class="tab" onclick="goSec(3)">DNS Amplification</div>
+</div></header>
+<div class="container"><div class="sec on" id="s0"></div><div class="sec" id="s1"></div><div class="sec" id="s2"></div><div class="sec" id="s3"></div></div>
+<script>
+function goSec(n){document.querySelectorAll('.sec').forEach((s,i)=>s.classList.toggle('on',i===n));document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('on',i===n));loadSection(n);}
+const S=[
+// DNS CACHE POISONING
+[
+{title:'Normal DNS Resolution (Recap)',detail:'Client asks resolver → Resolver checks cache → Cache miss → Asks Root → TLD → Authoritative → Gets real IP → Caches it → Returns to client.<br><br>The resolver <b>CACHES</b> the answer for the TTL duration. During that time, ANY client asking for the same domain gets the cached answer instantly — no need to query authoritative again.',
+diagram:`<div class="row">
+<div class="entity good"><div class="e-icon">💻</div><div class="e-name">Client</div></div>
+<div class="arrow ok">→</div>
+<div class="entity hl"><div class="e-icon">🔍</div><div class="e-name">DNS Resolver</div><div class="e-ip">Checks cache...</div></div>
+<div class="arrow ok">→</div>
+<div class="entity good"><div class="e-icon">📋</div><div class="e-name">Authoritative DNS</div></div>
+</div>
+<div style="text-align:center"><div class="pkt pkt-ok">bank.com = 203.0.113.50 ✓ (real IP, cached)</div></div>
+<div class="dns-cache"><div class="dns-cache-title">DNS Resolver Cache (Clean)</div>
+<div class="dns-row"><div class="dns-domain">bank.com</div><div class="dns-ip">203.0.113.50</div><div class="dns-status dns-ok">✓ Real IP</div></div>
+<div class="dns-row"><div class="dns-domain">google.com</div><div class="dns-ip">142.250.80.46</div><div class="dns-status dns-ok">✓ Real IP</div></div></div>`},
+
+{title:'The Attack: Racing the Real DNS Response',detail:'The attacker sends a query to the resolver: "What is bank.com?"<br><br>While the resolver waits for the REAL authoritative server to respond, the attacker <b>floods the resolver with FAKE responses</b> pretending to be the authoritative server.<br><br>Each fake response says: <b>"bank.com = 45.77.65.211"</b> (the attacker\'s IP)<br><br>DNS responses are matched by a <b>Transaction ID</b> (16-bit number = 65,536 possibilities). If the attacker guesses the correct Transaction ID BEFORE the real response arrives, the fake answer gets cached.',
+diagram:`<div class="row">
+<div class="entity bad hl"><div class="e-icon">💀</div><div class="e-name">Attacker</div><div class="e-ip">Floods fake responses</div></div>
+<div class="arrow atk">💥💥💥</div>
+<div class="entity hl"><div class="e-icon">🔍</div><div class="e-name">DNS Resolver</div><div class="e-ip">Waiting for real answer...</div></div>
+<div class="arrow ok">← (slow)</div>
+<div class="entity good"><div class="e-icon">📋</div><div class="e-name">Real Auth DNS</div></div>
+</div>
+<div style="text-align:center"><div class="pkt pkt-bad">FAKE: "bank.com = 45.77.65.211" × 65,536 guesses</div></div>`},
+
+{title:'Cache POISONED — All Clients Get the Fake IP',detail:'The fake response arrived first with the correct Transaction ID. The resolver <b>caches the fake answer</b>.<br><br>Now EVERY client asking this resolver for bank.com gets <b>45.77.65.211</b> — the attacker\'s server.<br><br>The fake site looks identical to the real bank. Thousands of users enter their credentials on the attacker\'s phishing page.',
+diagram:`<div class="row">
+<div class="entity"><div class="e-icon">💻</div><div class="e-name">Client 1</div></div>
+<div class="entity"><div class="e-icon">💻</div><div class="e-name">Client 2</div></div>
+<div class="entity"><div class="e-icon">💻</div><div class="e-name">Client 3</div></div>
+<div class="arrow atk">→</div>
+<div class="entity bad hl"><div class="e-icon">🔍</div><div class="e-name">POISONED Resolver</div></div>
+<div class="arrow atk">→</div>
+<div class="entity bad"><div class="e-icon">💀</div><div class="e-name">Fake Bank</div><div class="e-ip">45.77.65.211</div></div>
+</div>
+<div class="dns-cache"><div class="dns-cache-title">DNS Resolver Cache (POISONED! 🚨)</div>
+<div class="dns-row"><div class="dns-domain">bank.com</div><div class="dns-ip">45.77.65.211</div><div class="dns-status dns-poison">✗ FAKE — Attacker's server!</div></div>
+<div class="dns-row"><div class="dns-domain">google.com</div><div class="dns-ip">142.250.80.46</div><div class="dns-status dns-ok">✓ Still real</div></div></div>
+<div class="defense">🛡️ <b>Defense: DNSSEC</b> — cryptographically signs DNS records. The resolver can verify the signature and REJECT fake responses. Also: randomize source port (not just Transaction ID), use DNS over HTTPS (DoH).</div>`},
+],
+// DNS SPOOFING (local)
+[
+{title:'DNS Spoofing on the Local Network',detail:'Different from cache poisoning — this attack happens on your <b>local network</b> via Man-in-the-Middle.<br><br><b>Step 1:</b> Attacker performs ARP spoofing to become the MitM<br><b>Step 2:</b> When the victim sends a DNS query, the attacker INTERCEPTS it<br><b>Step 3:</b> Attacker sends back a fake DNS response BEFORE the real DNS server<br><b>Step 4:</b> Victim receives the fake IP and connects to the attacker\'s server',
+diagram:`<div class="row">
+<div class="entity"><div class="e-icon">💻</div><div class="e-name">Victim</div></div>
+<div class="arrow">→ DNS query</div>
+<div class="entity bad hl"><div class="e-icon">💀</div><div class="e-name">Attacker (MitM)</div><div class="e-ip">Intercepts DNS</div></div>
+<div class="arrow">→ (blocked)</div>
+<div class="entity" style="opacity:.3"><div class="e-icon">🔍</div><div class="e-name">Real DNS</div></div>
+</div>
+<div style="text-align:center"><div class="pkt pkt-bad">Attacker responds: "bank.com = FAKE IP" before real DNS</div></div>`},
+
+{title:'Victim Connects to the Fake Website',detail:'The victim\'s browser receives the fake IP and connects to the attacker\'s server. The fake website is a <b>perfect clone</b> of the real one.<br><br>The victim sees: correct URL in the browser, similar page layout, login form. They enter their credentials → attacker captures them → attacker logs into the REAL bank with stolen credentials.',
+diagram:`<div class="row">
+<div class="entity"><div class="e-icon">💻</div><div class="e-name">Victim</div><div class="e-ip">Sees: bank.com</div></div>
+<div class="arrow atk">→ Login</div>
+<div class="entity bad hl"><div class="e-icon">💀</div><div class="e-name">Fake Bank Clone</div><div class="e-ip">Captures credentials</div></div>
+</div>
+<div class="row" style="opacity:.4">
+<div class="entity good"><div class="e-icon">🏦</div><div class="e-name">Real Bank</div><div class="e-ip">Never contacted</div></div>
+</div>
+<div class="defense">🛡️ <b>Defense:</b> HTTPS + HSTS. The fake site won\'t have the real bank's TLS certificate. Browser shows certificate warning. NEVER ignore certificate warnings! Also: DNS over HTTPS (DoH) encrypts DNS queries so MitM can\'t read them.</div>`},
+],
+// DNS TUNNELING
+[
+{title:'DNS Tunneling — Hiding Data Inside DNS Queries',detail:'DNS tunneling is a <b>data exfiltration</b> technique. The attacker uses DNS queries to smuggle stolen data OUT of the network.<br><br><b>Why DNS?</b> Because port 53 (DNS) is almost ALWAYS allowed through firewalls. Even heavily restricted networks let DNS through — without it, nothing works.<br><br><b>How:</b> The attacker encodes stolen data as the subdomain in a DNS query. The query goes to the attacker\'s DNS server, which decodes the data.',
+diagram:`<div class="row">
+<div class="entity bad"><div class="e-icon">🦠</div><div class="e-name">Infected PC</div><div class="e-ip">Malware running</div></div>
+<div class="arrow atk">→ Port 53</div>
+<div class="entity"><div class="e-icon">🔥</div><div class="e-name">Firewall</div><div class="e-ip">DNS allowed ✓</div></div>
+<div class="arrow atk">→</div>
+<div class="entity bad hl"><div class="e-icon">💀</div><div class="e-name">Attacker DNS</div><div class="e-ip">evil-domain.com</div></div>
+</div>
+<div style="text-align:center"><div class="pkt pkt-bad">DNS query: aGVsbG8gd29ybGQ.data.evil-domain.com</div></div>
+<div style="text-align:center;font-size:10px;color:#888;margin-top:4px">↑ The subdomain IS the stolen data (Base64 encoded: "hello world")</div>`},
+
+{title:'How to DETECT DNS Tunneling',detail:'<b>Red flags SOC analysts look for:</b><br><br>• 📊 <b>High volume:</b> Normal PC makes 50-80 DNS queries/hour. Tunneling = 5,000+ queries/hour<br>• 📏 <b>Long subdomain names:</b> Normal: www.google.com (15 chars). Tunneling: aGVsbG8gd29ybGQ.data.evil.com (40+ chars)<br>• 🎲 <b>High entropy:</b> Encoded data looks random (aX7kL2m). Real domains look like words<br>• 🎯 <b>Single destination:</b> Thousands of queries all going to ONE unusual domain<br>• 🔤 <b>TXT record queries:</b> Tunneling often uses TXT records (large payload capacity)<br><br><b>Detection tools:</b> DNS query logging in SIEM, DNS analytics (PassiveDNS), frequency analysis',
+diagram:`<div class="dns-cache"><div class="dns-cache-title">🚨 Suspicious DNS Queries from 10.0.1.77 (last hour: 4,847 queries!)</div>
+<div class="dns-row"><div class="dns-domain">aGVsbG8gd29ybGQ.data.evil.com</div><div class="dns-ip">(encoded data)</div><div class="dns-status dns-poison">⚠ Suspicious</div></div>
+<div class="dns-row"><div class="dns-domain">dGhpcyBpcyBhIHR.data.evil.com</div><div class="dns-ip">(encoded data)</div><div class="dns-status dns-poison">⚠ Suspicious</div></div>
+<div class="dns-row"><div class="dns-domain">ZXhmaWx0cmF0aW9u.data.evil.com</div><div class="dns-ip">(encoded data)</div><div class="dns-status dns-poison">⚠ Suspicious</div></div></div>
+<div class="defense">🛡️ <b>Defense:</b> Monitor DNS query volume per host, alert on long/random subdomains, block known tunneling tools (iodine, dnscat2), DNS query logging to SIEM, restrict DNS to approved resolvers only.</div>`},
+],
+// DNS AMPLIFICATION
+[
+{title:'DNS Amplification DDoS Attack',detail:'The attacker combines <b>IP spoofing</b> + <b>DNS open resolvers</b> to create a massive DDoS attack.<br><br><b>Step 1:</b> Attacker spoofs the VICTIM\'s IP address as the source<br><b>Step 2:</b> Sends small DNS queries (60 bytes) to thousands of open DNS resolvers<br><b>Step 3:</b> Each resolver sends a LARGE response (up to 4,000 bytes) to the VICTIM\'s IP<br><b>Step 4:</b> Amplification factor: <b>up to 70x</b> — 1 Mbps attack becomes 70 Mbps hitting the victim',
+diagram:`<div class="row">
+<div class="entity bad hl"><div class="e-icon">💀</div><div class="e-name">Attacker</div><div class="e-ip">Spoofs victim IP</div></div>
+<div class="arrow atk">→ 60 bytes</div>
+<div class="entity"><div class="e-icon">🔍</div><div class="e-name">Open Resolver 1</div></div>
+</div>
+<div class="row">
+<div class="entity"><div class="e-icon">🔍</div><div class="e-name">Resolver 1</div></div>
+<div class="entity"><div class="e-icon">🔍</div><div class="e-name">Resolver 2</div></div>
+<div class="entity"><div class="e-icon">🔍</div><div class="e-name">Resolver 3</div></div>
+<div class="arrow atk">💥 4,000 bytes each</div>
+<div class="entity bad"><div class="e-icon">💻</div><div class="e-name">VICTIM</div><div class="e-ip">Flooded with responses!</div></div>
+</div>
+<div style="text-align:center"><div class="pkt pkt-bad">1 Mbps sent → 70 Mbps received by victim = 70x AMPLIFICATION</div></div>`},
+
+{title:'Why This Works and How to Prevent It',detail:'<b>Why it works:</b><br>• DNS is UDP — no handshake needed, easy to spoof source IP<br>• Open resolvers respond to ANY IP — they don\'t verify the requester<br>• "ANY" queries return ALL records for a domain — tiny request, huge response<br>• Thousands of resolvers = massive distributed attack<br><br><b>The victim cannot block it</b> because the traffic comes from thousands of legitimate DNS servers, not the attacker directly.',
+diagram:`<div style="text-align:center;margin-bottom:10px">
+<div class="pkt pkt-info" style="display:inline-block">Attacker sends: 60 byte query × 1,000 resolvers = 60 KB</div><br>
+<div class="pkt pkt-bad" style="display:inline-block;margin-top:4px">Victim receives: 4,000 byte response × 1,000 resolvers = 4 MB/sec 💥</div>
+</div>
+<div class="defense">🛡️ <b>Defenses:</b><br>
+• <b>BCP38 / Ingress filtering:</b> ISPs block packets with spoofed source IPs<br>
+• <b>Disable open resolvers:</b> DNS servers should only respond to authorized clients<br>
+• <b>Response Rate Limiting (RRL):</b> Limit how many responses a DNS server sends to one IP<br>
+• <b>DDoS protection services:</b> Cloudflare, AWS Shield absorb the traffic before it reaches you<br>
+• <b>Block ANY queries:</b> Disable the ANY query type that produces large responses</div>`},
+],
+];
+
+let si=[0,0,0,0];
+function loadSection(n){const steps=S[n];const i=si[n];const s=steps[i];
+document.getElementById('s'+n).innerHTML=`${s.diagram}
+<div class="step-card"><div class="step-num">STEP ${i+1} OF ${steps.length}</div>
+<div class="step-title">${s.title}</div><div class="step-detail">${s.detail}</div></div>
+<div class="dots">${steps.map((_,j)=>`<div class="dot${j<i?' done':''}${j===i?' on':''}"></div>`).join('')}</div>
+<div class="nav"><div class="nav-btn" onclick="pv(${n})">← Back</div><div class="nav-btn primary" onclick="nx(${n})">Next →</div></div>`;}
+function nx(n){if(si[n]<S[n].length-1){si[n]++;loadSection(n);}}
+function pv(n){if(si[n]>0){si[n]--;loadSection(n);}}
+document.addEventListener('keydown',e=>{const a=[...document.querySelectorAll('.sec')].findIndex(s=>s.classList.contains('on'));if(e.key==='ArrowRight'||e.key===' ')nx(a);if(e.key==='ArrowLeft')pv(a);});
+loadSection(0);
+</script>
+</body></html>
